@@ -1,24 +1,13 @@
 # Bedrock Governance
 
-This repository contains a Terraform implementation for Amazon Bedrock governance with support for account-specific deployment variance.
+This repository contains a Terraform implementation for Amazon Bedrock governance
 
 ## Features
 
-1. Application Inference Profile (AIP) provisioning from `model_sources` model IDs
+1. Application Inference Profile (AIP) provisioning
 2. CloudTrail audit logging with encrypted S3 storage
 3. CloudWatch anomaly alarms for input and output token usage per AIP
 4. Organizations Service Control Policy that allows Bedrock invocation only through child-account AIPs
-5. Multi-account deployment overlays using per-account backend and tfvars files
-
-## Key inputs
-
-- `model_sources` (child mode): list of model IDs used to create AIPs.
-  - If `model_id` starts with `us.`, `eu.`, `apac.`, `global.`, or `us-gov.`, it is treated as a cross-region inference profile ID.
-  - Otherwise, it is treated as a foundation model ID.
-  - CloudWatch anomaly alarms are always created per AIP (input and output token count).
-  - Per-model tags are not supported; governance resources are tagged with `aws-apn-id` from `apn_id`.
-- `scp_target_ids` (management mode): list of Organizations account IDs and/or OU IDs for SCP attachment.
-  - When account IDs are present, SCP conditions are scoped to those child-account AIP ARNs.
 
 ## Repository layout
 
@@ -26,16 +15,16 @@ This repository contains a Terraform implementation for Amazon Bedrock governanc
 .
 |- main.tf                      # Root orchestration entrypoint
 |- backend.tf                   # Backend block (values sourced from backend.hcl)
-|- backend.hcl.example          # Backend config example
 |- bootstrap/
-|  |- s3_dynamodb.yaml          # State bucket + lock table bootstrap
+|  |- management_bootstrap.yaml # Management bootstrap (state backend)
+|  |- child_bootstrap.yaml      # Child bootstrap (child deploy role)
 |- deployment_accounts/
 |  |- example/
 |  |  |- backend.hcl            # Account-specific backend settings
 |  |  |- management.tfvars      # Vars for management deployment
 |  |  |- child.tfvars           # Vars for child deployment
 |- modules/
-|  |- bedrock_governance/.      # Re-usable Bedrock Governance Stack
+|  |- bedrock_governance/.      # Re-usable Bedrock Governance Module
 ```
 
 ## Prerequisites
@@ -43,55 +32,43 @@ This repository contains a Terraform implementation for Amazon Bedrock governanc
 1. Terraform 1.5+
 2. AWS CLI configured for target accounts
 
-## Bootstrap remote state
+## Deployment Instructions
 
-Deploy bootstrap/s3_dynamodb.yaml once in the state-hosting account:
-
-```bash
-aws cloudformation deploy \
-  --template-file bootstrap/s3_dynamodb.yaml \
-  --stack-name terraform-state \
-  --parameter-overrides BucketNamePrefix=bedrock-governance
-```
-
-Then update each deployment_accounts/<account>/backend.hcl with the correct bucket and key.
-
-Recommended state account: management account.
-
-Why:
-
-1. Centralized governance and auditability for all Terraform states.
-2. Better separation of duties (child accounts consume infrastructure, but do not own shared state control).
-3. Reduced blast radius if a child account is changed, suspended, or decommissioned.
-4. Simpler IAM policy management for state bucket and lock table.
-
-## Deployment instructions
-
-1. Deploy the remote state bootstrap stack (once, in the state-hosting account):
-
-   ```bash
-   aws cloudformation deploy \
-     --template-file bootstrap/s3_dynamodb.yaml \
-     --stack-name terraform-state \
-     --parameter-overrides BucketNamePrefix=bedrock-governance
-   ```
-
-2. Update each `deployment_accounts/<account>/backend.hcl` with the real S3 bucket, key, region, and DynamoDB table values created by the bootstrap stack.
-
-3. Initialize Terraform for the target account:
+1. Bootstrap the management account once (state backend).
 
   ```bash
-  terraform init -reconfigure -backend-config=deployment_accounts/example/backend.hcl
+  aws cloudformation deploy \
+    --template-file bootstrap/management_bootstrap.yaml \
+    --stack-name bedrock-governance-management-bootstrap
   ```
 
-4. Deploy management account resources:
+2. Bootstrap each child account once (child deploy role).
+
+  ```bash
+  aws cloudformation deploy \
+    --template-file bootstrap/child_bootstrap.yaml \
+    --stack-name bedrock-governance-child-bootstrap
+  ```
+
+3. Copy bootstrap outputs into config files.
+
+- Copy state bucket/table values from management bootstrap into `deployment_accounts/example/backend.hcl`.
+- Copy `ChildDeployRoleArn` into `deployment_accounts/example/child.tfvars` as `deploy_role_arn`.
+
+4. Initialize Terraform using the backend config.
+
+  ```bash
+  terraform init -backend-config=deployment_accounts/example/backend.hcl
+  ```
+
+5. Deploy management resources (SCP stack) as `Ascending-administrator-role` in the management account.
 
   ```bash
   terraform plan -var-file=deployment_accounts/example/management.tfvars
   terraform apply -var-file=deployment_accounts/example/management.tfvars
   ```
 
-5. Deploy child account resources:
+6. Deploy child resources (AIPs, CloudTrail, alarms).
 
   ```bash
   terraform plan -var-file=deployment_accounts/example/child.tfvars

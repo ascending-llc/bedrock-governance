@@ -6,11 +6,9 @@ locals {
   is_child      = var.deployment_mode == "child"
   is_management = var.deployment_mode == "management"
 
-  models_by_name = {
+  child_models = local.is_child ? {
     for m in var.model_sources : m.name => m
-  }
-
-  child_models = local.is_child ? local.models_by_name : {}
+  } : {}
 
   model_source_arns = {
     for name, model in local.child_models :
@@ -21,16 +19,24 @@ locals {
     )
   }
 
-  child_account_ids = [
-    for id in var.scp_target_ids : id
-    if can(regex("^\\d{12}$", id))
+  allowed_aip_model_ids = [
+    "arn:${data.aws_partition.current.partition}:bedrock:*:$${aws:PrincipalAccount}:application-inference-profile/*"
   ]
 
-  allowed_aip_model_ids = (
-    length(local.child_account_ids) > 0
-    ? [for account_id in local.child_account_ids : "arn:${data.aws_partition.current.partition}:bedrock:*:${account_id}:application-inference-profile/*"]
-    : ["arn:${data.aws_partition.current.partition}:bedrock:*:*:application-inference-profile/*"]
-  )
+  anomaly_alarm_entries = merge([
+    for key, model in local.child_models : {
+      "${key}__InputTokenCount" = {
+        profile_name = model.name
+        metric_name  = "InputTokenCount"
+        suffix       = "input-token-anomaly"
+      }
+      "${key}__OutputTokenCount" = {
+        profile_name = model.name
+        metric_name  = "OutputTokenCount"
+        suffix       = "output-token-anomaly"
+      }
+    }
+  ]...)
 }
 
 resource "aws_bedrock_inference_profile" "this" {
@@ -46,23 +52,6 @@ resource "aws_bedrock_inference_profile" "this" {
   tags = {
     aws-apn-id = var.apn_id
   }
-}
-
-locals {
-  anomaly_alarm_entries = merge([
-    for key, model in local.child_models : {
-      "${key}__InputTokenCount" = {
-        profile_name = model.name
-        metric_name  = "InputTokenCount"
-        suffix       = "input-token-anomaly"
-      }
-      "${key}__OutputTokenCount" = {
-        profile_name = model.name
-        metric_name  = "OutputTokenCount"
-        suffix       = "output-token-anomaly"
-      }
-    }
-  ]...)
 }
 
 resource "aws_cloudwatch_metric_alarm" "bedrock_anomaly" {

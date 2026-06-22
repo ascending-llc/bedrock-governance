@@ -1,0 +1,108 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Child bootstrap for Bedrock Governance (child deploy role)'
+
+Parameters:
+  RoleName:
+    Type: String
+    Default: BedrockGovernanceDeployer
+    Description: Name of the child deploy role used by Terraform provider assume-role.
+
+  TrustedPrincipalArn:
+    Type: String
+    Default: arn:aws:iam::417955964108:role/Ascending-administrator-role
+    Description: IAM principal ARN allowed to assume the deploy role (typically a management execution role).
+
+Resources:
+  ChildDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref RoleName
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRole
+            Principal:
+              AWS: !Ref TrustedPrincipalArn
+
+  ChildDeploymentPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: BedrockGovernanceChildDeployment
+      Roles:
+        - !Ref ChildDeployRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: BedrockInferenceProfile
+            Effect: Allow
+            Action:
+              - bedrock:CreateInferenceProfile
+              - bedrock:DeleteInferenceProfile
+              - bedrock:GetInferenceProfile
+              - bedrock:ListInferenceProfiles
+              - bedrock:TagResource
+              - bedrock:UntagResource
+            Resource: '*'
+
+          - Sid: CloudWatchAlarms
+            Effect: Allow
+            Action:
+              - cloudwatch:DescribeAlarms
+              - cloudwatch:PutMetricAlarm
+              - cloudwatch:DeleteAlarms
+              - cloudwatch:TagResource
+              - cloudwatch:UntagResource
+              - cloudwatch:ListTagsForResource
+            Resource: '*'
+
+          - Sid: BedrockCloudTrail
+            Effect: Allow
+            Action:
+              - cloudtrail:CreateTrail
+              - cloudtrail:UpdateTrail
+              - cloudtrail:DeleteTrail
+              - cloudtrail:GetTrail
+              - cloudtrail:GetTrailStatus
+              - cloudtrail:ListTrails
+              - cloudtrail:StartLogging
+              - cloudtrail:StopLogging
+              - cloudtrail:AddTags
+              - cloudtrail:RemoveTags
+              - cloudtrail:ListTags
+              - cloudtrail:PutEventSelectors
+            Resource: '*'
+
+          - Sid: BedrockAuditBucket
+            Effect: Allow
+            Action:
+              - s3:CreateBucket
+              - s3:DeleteBucket
+              - s3:ListBucket
+              - s3:GetBucketAcl
+              - s3:GetBucketPolicy
+              - s3:PutBucketPolicy
+              - s3:DeleteBucketPolicy
+              - s3:GetBucketVersioning
+              - s3:PutBucketVersioning
+              - s3:GetBucketTagging
+              - s3:PutBucketTagging
+              - s3:DeleteBucketTagging
+              - s3:GetBucketEncryption
+              - s3:PutEncryptionConfiguration
+              - s3:GetBucketPublicAccessBlock
+              - s3:PutBucketPublicAccessBlock
+            Resource:
+              - arn:aws:s3:::*
+
+          - Sid: ReadCallerContext
+            Effect: Allow
+            Action:
+              - sts:GetCallerIdentity
+              - ec2:DescribeRegions
+            Resource: '*'
+
+Outputs:
+  ChildDeployRoleArn:
+    Description: IAM role ARN to set as deploy_role_arn for child deployments.
+    Value: !GetAtt ChildDeployRole.Arn

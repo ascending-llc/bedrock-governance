@@ -1,15 +1,20 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'Create S3 bucket and DynamoDB table for Terraform remote state and locking'
+Description: 'Management bootstrap for Bedrock Governance (Terraform state backend)'
 
 Parameters:
   BucketNamePrefix:
     Type: String
     Default: bedrock-governance
-    Description: Prefix for the Terraform state S3 bucket.
+    Description: Prefix for the Terraform state S3 bucket name.
+
+  LockTableName:
+    Type: String
+    Default: terraform-locks
+    Description: DynamoDB table name used for Terraform state locking.
 
 Resources:
   TerraformStateBucket:
-    Type: 'AWS::S3::Bucket'
+    Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub '${BucketNamePrefix}-terraform-states'
       VersioningConfiguration:
@@ -28,9 +33,9 @@ Resources:
               SSEAlgorithm: AES256
 
   TerraformLockTable:
-    Type: 'AWS::DynamoDB::Table'
+    Type: AWS::DynamoDB::Table
     Properties:
-      TableName: 'terraform-locks'
+      TableName: !Ref LockTableName
       AttributeDefinitions:
         - AttributeName: LockID
           AttributeType: S
@@ -41,9 +46,9 @@ Resources:
 
 Outputs:
   S3BucketName:
-    Description: Name of the S3 bucket for Terraform state
+    Description: Name of the S3 bucket for Terraform state.
     Value: !Ref TerraformStateBucket
 
   DynamoDBTableName:
-    Description: Name of the DynamoDB table for Terraform locking
+    Description: Name of the DynamoDB table for Terraform locking.
     Value: !Ref TerraformLockTable

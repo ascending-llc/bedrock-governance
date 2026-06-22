@@ -1,6 +1,7 @@
 region               = "us-east-1"
 resource_name_prefix = "bedrock-governance"
 deployment_mode      = "child"
+deploy_role_arn      = "arn:aws:iam::444444444444:role/BedrockGovernanceDeployer"
 
 model_sources = [
   {

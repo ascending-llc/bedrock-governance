@@ -14,6 +14,18 @@ variable "apn_id" {
   default     = "pc:6dk7y4gy6eblaqbh0zck484bk"
 }
 
+variable "deploy_role_arn" {
+  description = "Optional IAM role ARN for provider-side deployments (assumed after backend auth)."
+  type        = string
+  default     = null
+}
+
+variable "deploy_role_session_name" {
+  description = "STS session name used when assume_role is enabled for deployments."
+  type        = string
+  default     = "bedrock-governance-terraform"
+}
+
 variable "deployment_mode" {
   description = "Deploy child resources or management SCP resources."
   type        = string
