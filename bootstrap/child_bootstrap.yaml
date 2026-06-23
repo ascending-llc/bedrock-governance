@@ -9,7 +9,6 @@ Parameters:
 
   TrustedPrincipalArn:
     Type: String
-    Default: arn:aws:iam::417955964108:role/Ascending-administrator-role
     Description: IAM principal ARN allowed to assume the deploy role (typically a management execution role).
 
 Resources:
