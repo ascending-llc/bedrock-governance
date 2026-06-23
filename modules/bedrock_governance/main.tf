@@ -132,6 +132,27 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "bedrock_audit" {
   }
 }
 
+resource "aws_s3_bucket_lifecycle_configuration" "bedrock_audit" {
+  count = local.is_child ? 1 : 0
+
+  bucket = aws_s3_bucket.bedrock_audit[0].id
+
+  rule {
+    id     = "retain-30-days"
+    status = "Enabled"
+
+    filter {}
+
+    expiration {
+      days = 30
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 30
+    }
+  }
+}
+
 data "aws_iam_policy_document" "bedrock_audit_bucket" {
   count = local.is_child ? 1 : 0
 

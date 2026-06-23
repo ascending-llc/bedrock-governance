@@ -5,7 +5,7 @@ This repository contains a Terraform implementation for Amazon Bedrock governanc
 ## Features
 
 1. Application Inference Profile (AIP) provisioning
-2. CloudTrail audit logging with encrypted S3 storage
+2. CloudTrail audit logging with encrypted S3 storage and 30-day rolling retention
 3. CloudWatch anomaly alarms for input and output token usage per AIP
 4. Organizations Service Control Policy that allows Bedrock invocation only through child-account AIPs
 
@@ -24,7 +24,7 @@ This repository contains a Terraform implementation for Amazon Bedrock governanc
 |  |  |- management.tfvars      # Vars for management deployment
 |  |  |- child.tfvars           # Vars for child deployment
 |- modules/
-|  |- bedrock_governance/.      # Re-usable Bedrock Governance Module
+|  |- bedrock_governance/      # Bedrock Governance Module
 ```
 
 ## Prerequisites
