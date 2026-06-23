@@ -263,19 +263,30 @@ resource "aws_organizations_policy" "bedrock_approved_models" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "DenyUnapprovedBedrockModelInvocations"
+        Sid    = "DenyNonAIPNonFMResources"
         Effect = "Deny"
         Action = [
           "bedrock:InvokeModel",
           "bedrock:InvokeModelWithResponseStream",
-          "bedrock:Converse",
-          "bedrock:ConverseStream",
           "bedrock:CreateModelInvocationJob"
         ]
-        Resource = "*"
+        NotResource = [
+          "arn:${data.aws_partition.current.partition}:bedrock:*:$${aws:PrincipalAccount}:application-inference-profile/*",
+          "arn:${data.aws_partition.current.partition}:bedrock:*::foundation-model/*"
+        ]
+      },
+      {
+        Sid    = "DenyDirectFoundationModelInvocations"
+        Effect = "Deny"
+        Action = [
+          "bedrock:InvokeModel",
+          "bedrock:InvokeModelWithResponseStream",
+          "bedrock:CreateModelInvocationJob"
+        ]
+        Resource = "arn:${data.aws_partition.current.partition}:bedrock:*::foundation-model/*"
         Condition = {
-          StringNotLikeIfExists = {
-            "bedrock:ModelId" = local.allowed_aip_model_ids
+          ArnNotLike = {
+            "bedrock:InferenceProfileArn" = "arn:${data.aws_partition.current.partition}:bedrock:*:$${aws:PrincipalAccount}:application-inference-profile/*"
           }
         }
       }
