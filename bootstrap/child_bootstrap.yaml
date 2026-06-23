@@ -40,6 +40,7 @@ Resources:
               - bedrock:DeleteInferenceProfile
               - bedrock:GetInferenceProfile
               - bedrock:ListInferenceProfiles
+              - bedrock:ListTagsForResource
               - bedrock:TagResource
               - bedrock:UntagResource
             Resource: '*'
@@ -61,8 +62,11 @@ Resources:
               - cloudtrail:CreateTrail
               - cloudtrail:UpdateTrail
               - cloudtrail:DeleteTrail
+              - cloudtrail:DescribeTrails
               - cloudtrail:GetTrail
               - cloudtrail:GetTrailStatus
+              - cloudtrail:GetEventSelectors
+              - cloudtrail:GetInsightSelectors
               - cloudtrail:ListTrails
               - cloudtrail:StartLogging
               - cloudtrail:StopLogging
@@ -78,22 +82,16 @@ Resources:
               - s3:CreateBucket
               - s3:DeleteBucket
               - s3:ListBucket
-              - s3:GetBucketAcl
-              - s3:GetBucketPolicy
-              - s3:PutBucketPolicy
-              - s3:DeleteBucketPolicy
+              - s3:GetBucket*
+              - s3:GetAccelerateConfiguration
+              - s3:PutBucket*
+              - s3:PutAccelerateConfiguration
+              - s3:DeleteBucket*
               - s3:GetLifecycleConfiguration
               - s3:PutLifecycleConfiguration
-              - s3:DeleteLifecycleConfiguration
-              - s3:GetBucketVersioning
-              - s3:PutBucketVersioning
-              - s3:GetBucketTagging
-              - s3:PutBucketTagging
-              - s3:DeleteBucketTagging
-              - s3:GetBucketEncryption
               - s3:PutEncryptionConfiguration
-              - s3:GetBucketPublicAccessBlock
-              - s3:PutBucketPublicAccessBlock
+              - s3:GetReplicationConfiguration
+              - s3:GetEncryptionConfiguration
             Resource:
               - arn:aws:s3:::*
 

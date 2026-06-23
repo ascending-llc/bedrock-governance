@@ -8,12 +8,6 @@ variable "resource_name_prefix" {
   type        = string
 }
 
-variable "apn_id" {
-  description = "AWS Partner Network ID."
-  type        = string
-  default     = "pc:6dk7y4gy6eblaqbh0zck484bk"
-}
-
 variable "deploy_role_arn" {
   description = "Optional IAM role ARN for provider-side deployments (assumed after backend auth)."
   type        = string

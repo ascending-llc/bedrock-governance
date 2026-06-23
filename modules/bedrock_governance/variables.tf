@@ -12,6 +12,11 @@ variable "apn_id" {
 variable "deployment_mode" {
   description = "Deploy child resources or management SCP resources."
   type        = string
+
+  validation {
+    condition     = contains(["child", "management"], var.deployment_mode)
+    error_message = "deployment_mode must be child or management."
+  }
 }
 
 variable "scp_target_ids" {

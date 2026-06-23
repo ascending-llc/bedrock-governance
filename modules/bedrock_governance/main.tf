@@ -73,7 +73,8 @@ resource "aws_cloudwatch_metric_alarm" "bedrock_anomaly" {
   }
 
   metric_query {
-    id = "m1"
+    id          = "m1"
+    return_data = true
     metric {
       namespace   = "AWS/Bedrock"
       metric_name = each.value.metric_name
