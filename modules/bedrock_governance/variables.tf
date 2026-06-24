@@ -38,8 +38,8 @@ variable "model_sources" {
   }
 
   validation {
-    condition     = alltrue([for m in var.model_sources : length(trimspace(m.model_name)) > 0])
-    error_message = "Each model_sources entry must have a non-empty model_name."
+    condition     = alltrue([for m in var.model_sources : length(trimspace(m.name)) > 0])
+    error_message = "Each model_sources entry must have a non-empty name."
   }
 
   validation {

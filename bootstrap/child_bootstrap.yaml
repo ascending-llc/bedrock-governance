@@ -49,11 +49,31 @@ Resources:
             Effect: Allow
             Action:
               - cloudwatch:DescribeAlarms
+              - cloudwatch:DescribeAlarmHistory
               - cloudwatch:PutMetricAlarm
               - cloudwatch:DeleteAlarms
               - cloudwatch:TagResource
               - cloudwatch:UntagResource
               - cloudwatch:ListTagsForResource
+            Resource: '*'
+
+          - Sid: BedrockAlarmNotifications
+            Effect: Allow
+            Action:
+              - sns:CreateTopic
+              - sns:DeleteTopic
+              - sns:GetTopicAttributes
+              - sns:SetTopicAttributes
+              - sns:ListTopics
+              - sns:ListSubscriptions
+              - sns:ListTagsForResource
+              - sns:TagResource
+              - sns:UntagResource
+              - sns:Subscribe
+              - sns:Unsubscribe
+              - sns:GetSubscriptionAttributes
+              - sns:SetSubscriptionAttributes
+              - sns:ListSubscriptionsByTopic
             Resource: '*'
 
           - Sid: BedrockCloudTrail
@@ -74,6 +94,7 @@ Resources:
               - cloudtrail:RemoveTags
               - cloudtrail:ListTags
               - cloudtrail:PutEventSelectors
+              - cloudtrail:PutInsightSelectors
             Resource: '*'
 
           - Sid: BedrockAuditBucket
