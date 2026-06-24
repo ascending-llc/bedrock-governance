@@ -39,11 +39,11 @@ Edit `~/.claude/settings.json` and add a `modelOverrides` block mapping each mod
 }
 ```
 
-Alternatively, set environment variables before launching Claude Code:
+Alternatively, set `DEFAULT_ANTHROPIC_*_MODEL` environment variables before launching Claude Code:
 
 ```bash
 export DEFAULT_ANTHROPIC_SONNET_MODEL="arn:aws:bedrock:us-east-1:<ACCOUNT_ID>:application-inference-profile/<SONNET_AIP_ID>"
-export DEFAULT_ANTHROPIC_HAIKU_MODEL="arn:aws:bedrock:us-east-1:<ACCOUNT_ID>:application-inference-profile/<SONNET_AIP_ID>"
+export DEFAULT_ANTHROPIC_HAIKU_MODEL="arn:aws:bedrock:us-east-1:<ACCOUNT_ID>:application-inference-profile/<HAIKU_AIP_ID>"
 ```
 
 ### Validate governance enforcement
