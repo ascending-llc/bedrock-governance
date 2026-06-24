@@ -19,21 +19,19 @@ locals {
     )
   }
 
-  allowed_aip_model_ids = [
-    "arn:${data.aws_partition.current.partition}:bedrock:*:$${aws:PrincipalAccount}:application-inference-profile/*"
-  ]
-
   anomaly_alarm_entries = merge([
     for key, model in local.child_models : {
       "${key}__InputTokenCount" = {
         profile_name = model.name
         metric_name  = "InputTokenCount"
         suffix       = "input-token-anomaly"
+        team         = model.team
       }
       "${key}__OutputTokenCount" = {
         profile_name = model.name
         metric_name  = "OutputTokenCount"
         suffix       = "output-token-anomaly"
+        team         = model.team
       }
     }
   ]...)
@@ -49,9 +47,21 @@ resource "aws_bedrock_inference_profile" "this" {
     copy_from = local.model_source_arns[each.key]
   }
 
-  tags = {
-    aws-apn-id = var.apn_id
-  }
+  tags = each.value.team != null ? { Team = each.value.team } : {}
+}
+
+resource "aws_sns_topic" "anomaly_alerts" {
+  count = local.is_child && var.alarm_email != null ? 1 : 0
+
+  name = "${var.resource_name_prefix}-bedrock-anomaly-alerts"
+}
+
+resource "aws_sns_topic_subscription" "anomaly_alerts_email" {
+  count = local.is_child && var.alarm_email != null ? 1 : 0
+
+  topic_arn = aws_sns_topic.anomaly_alerts[0].arn
+  protocol  = "email"
+  endpoint  = var.alarm_email
 }
 
 resource "aws_cloudwatch_metric_alarm" "bedrock_anomaly" {
@@ -64,6 +74,8 @@ resource "aws_cloudwatch_metric_alarm" "bedrock_anomaly" {
   datapoints_to_alarm = 2
   treat_missing_data  = "notBreaching"
   threshold_metric_id = "ad1"
+  alarm_actions       = var.alarm_email != null ? [aws_sns_topic.anomaly_alerts[0].arn] : []
+  ok_actions          = var.alarm_email != null ? [aws_sns_topic.anomaly_alerts[0].arn] : []
 
   metric_query {
     id          = "ad1"
@@ -86,9 +98,7 @@ resource "aws_cloudwatch_metric_alarm" "bedrock_anomaly" {
     }
   }
 
-  tags = {
-    aws-apn-id = var.apn_id
-  }
+  tags = each.value.team != null ? { Team = each.value.team } : {}
 }
 
 resource "aws_s3_bucket" "bedrock_audit" {
@@ -96,9 +106,7 @@ resource "aws_s3_bucket" "bedrock_audit" {
 
   bucket = "${var.resource_name_prefix}-bedrock-audit-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.name}"
 
-  tags = {
-    aws-apn-id = var.apn_id
-  }
+  tags = {}
 }
 
 resource "aws_s3_bucket_versioning" "bedrock_audit" {
@@ -247,9 +255,7 @@ resource "aws_cloudtrail" "bedrock" {
 
   depends_on = [aws_s3_bucket_policy.bedrock_audit]
 
-  tags = {
-    aws-apn-id = var.apn_id
-  }
+  tags = {}
 }
 
 resource "aws_organizations_policy" "bedrock_approved_models" {
@@ -293,9 +299,7 @@ resource "aws_organizations_policy" "bedrock_approved_models" {
     ]
   })
 
-  tags = {
-    aws-apn-id = var.apn_id
-  }
+  tags = {}
 }
 
 resource "aws_organizations_policy_attachment" "bedrock_approved_models" {
