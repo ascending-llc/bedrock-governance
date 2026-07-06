@@ -100,7 +100,7 @@ Use the `ChildDeployRoleArn` output from each stack instance when populating `ch
 
 ## Step 3 — Populate config files
 
-Copy the following values from the CloudFormation stack outputs into the config files in `deployment_accounts/`.
+Copy the following values from the CloudFormation stack outputs into the config files in `deployment_accounts/example/` (or your copy of that folder).
 
 | Output | File | Key |
 |---|---|---|
@@ -115,9 +115,9 @@ Copy the following values from the CloudFormation stack outputs into the config 
 Initialize Terraform with the management backend, then apply.
 
 ```bash
-terraform init -reconfigure -backend-config=deployment_accounts/management_backend.hcl
-terraform plan  -var-file=deployment_accounts/management.tfvars
-terraform apply -var-file=deployment_accounts/management.tfvars
+terraform init -reconfigure -backend-config=deployment_accounts/example/management_backend.hcl
+terraform plan  -var-file=deployment_accounts/example/management.tfvars
+terraform apply -var-file=deployment_accounts/example/management.tfvars
 ```
 
 This deploys the SCP and attaches it to the account/OU IDs listed in `scp_target_ids`.
@@ -127,9 +127,9 @@ This deploys the SCP and attaches it to the account/OU IDs listed in `scp_target
 Reinitialize Terraform with the child backend, then apply.
 
 ```bash
-terraform init -reconfigure -backend-config=deployment_accounts/child_backend.hcl
-terraform plan  -var-file=deployment_accounts/child.tfvars
-terraform apply -var-file=deployment_accounts/child.tfvars
+terraform init -reconfigure -backend-config=deployment_accounts/example/child_backend.hcl
+terraform plan  -var-file=deployment_accounts/example/child.tfvars
+terraform apply -var-file=deployment_accounts/example/child.tfvars
 ```
 
 This deploys AIPs, the CloudTrail trail, the audit S3 bucket, and CloudWatch anomaly alarms.
