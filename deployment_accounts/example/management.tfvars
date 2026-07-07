@@ -9,3 +9,6 @@ deployment_mode      = "management"
 # Find account IDs in AWS Organizations > Accounts.
 # Find OU IDs in AWS Organizations > AWS accounts (select an OU, copy its ID).
 scp_target_ids = ["<ACCOUNT_ID_OR_OU_ID>"]
+
+# Foundation model ID glob patterns exempted from the AIP requirement.
+direct_access_model_id_patterns = ["<MODEL_ID_PATTERN>"] # e.g. "amazon.titan-*"

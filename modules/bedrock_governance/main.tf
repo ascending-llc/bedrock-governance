@@ -289,7 +289,13 @@ resource "aws_organizations_policy" "bedrock_approved_models" {
           "bedrock:InvokeModelWithResponseStream",
           "bedrock:CreateModelInvocationJob"
         ]
-        Resource = "arn:${data.aws_partition.current.partition}:bedrock:*::foundation-model/*"
+        NotResource = concat(
+          ["arn:${data.aws_partition.current.partition}:bedrock:*:$${aws:PrincipalAccount}:application-inference-profile/*"],
+          [
+            for pattern in var.direct_access_model_id_patterns :
+            "arn:${data.aws_partition.current.partition}:bedrock:*::foundation-model/${pattern}"
+          ]
+        )
         Condition = {
           ArnNotLike = {
             "bedrock:InferenceProfileArn" = "arn:${data.aws_partition.current.partition}:bedrock:*:$${aws:PrincipalAccount}:application-inference-profile/*"

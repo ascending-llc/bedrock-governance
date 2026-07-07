@@ -43,6 +43,12 @@ variable "scp_target_ids" {
   default     = []
 }
 
+variable "direct_access_model_id_patterns" {
+  description = "Foundation model ID glob patterns exempted from the AIP requirement and allowed to be invoked directly."
+  type        = list(string)
+  default     = []
+}
+
 variable "model_sources" {
   description = "Model IDs used to create application inference profiles and related alarm behavior in child mode. Use one entry per team per model to enable per-team usage tracking."
   type = list(object({

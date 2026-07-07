@@ -18,6 +18,12 @@ variable "scp_target_ids" {
   type        = list(string)
 }
 
+variable "direct_access_model_id_patterns" {
+  description = "Foundation model ID glob patterns (e.g. \"amazon.titan-*\") exempted from the AIP requirement and allowed to be invoked directly."
+  type        = list(string)
+  default     = []
+}
+
 variable "alarm_email" {
   description = "Optional email address to notify when an anomaly alarm transitions to ALARM or OK. If set, an SNS topic and email subscription are created automatically."
   type        = string
