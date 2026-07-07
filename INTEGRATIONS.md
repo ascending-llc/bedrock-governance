@@ -7,8 +7,8 @@ Claude Code supports Amazon Bedrock as a provider, letting you route all model t
 ### Prerequisites
 
 - Claude Code v2.1.94 or later
-- AWS credentials that can invoke Bedrock in the child account
-- Deployed AIP ARNs (available as Terraform outputs after a child deployment)
+- AWS credentials that can invoke Bedrock
+- Deployed Application Inference Profile ARNs
 
 Retrieve your AIP ARNs at any time:
 
@@ -24,35 +24,25 @@ Run the setup command inside Claude Code:
 /setup-bedrock
 ```
 
-Choose **Amazon Bedrock**, then enter your region and confirm your AWS credentials are active. Run `/status` afterward to confirm the provider shows **Bedrock**.
+Choose **Amazon Bedrock**, then enter your region and log in using your preferred method. Run `/status` afterward to confirm the API provider shows **Amazon Bedrock**.
 
 ### Pin models to your AIPs
 
-Edit `~/.claude/settings.json` and add a `modelOverrides` block mapping each model name to its AIP ARN:
+Edit `~/.claude/settings.json` to add the following environment configuration.
 
 ```json
-{
-  "modelOverrides": {
-    "claude-sonnet-4-6": "arn:aws:bedrock:us-east-1:<ACCOUNT_ID>:application-inference-profile/<SONNET_AIP_ID>",
-    "claude-haiku-4-5": "arn:aws:bedrock:us-east-1:<ACCOUNT_ID>:application-inference-profile/<HAIKU_AIP_ID>"
-  }
+"env": {
+  "CLAUDE_CODE_USE_BEDROCK": "1",
+  "AWS_REGION": "us-east-1",
+  "ANTHROPIC_DEFAULT_SONNET_MODEL_NAME": "arn:aws:bedrock:us-east-1:<ACCOUNT_ID>:application-inference-profile/<SONNET_AIP_ID>",
+  "ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME": "arn:aws:bedrock:us-east-1:<ACCOUNT_ID>:application-inference-profile/<HAIKU_AIP_ID>"
 }
-```
-
-Alternatively, set `ANTHROPIC_DEFAULT_*_MODEL` environment variables before launching Claude Code:
-
-```bash
-export ANTHROPIC_DEFAULT_SONNET_MODEL="arn:aws:bedrock:us-east-1:<ACCOUNT_ID>:application-inference-profile/<SONNET_AIP_ID>"
-export ANTHROPIC_DEFAULT_HAIKU_MODEL="arn:aws:bedrock:us-east-1:<ACCOUNT_ID>:application-inference-profile/<HAIKU_AIP_ID>"
 ```
 
 ### Validate governance enforcement
 
-1. Invoke Claude Code normally and confirm requests succeed through the pinned AIPs.
-2. Attempt a direct foundation-model invocation from the AWS CLI to confirm the SCP blocks it:
+1. Run `/model` to select your desired model.
+2. Invoke Claude Code normally and confirm requests succeed through the pinned AIPs.
+3. Attempt a direct foundation-model invocation from the AWS CLI to confirm the SCP blocks it:
 
-```bash
-claude --model sonnet
-```
-
-You should receive an `AccessDeniedException`. Requests routed through an AIP ARN will succeed; requests targeting the foundation model ARN directly will be denied by the SCP.
+Requests directly targeting a foundation model will throw an `AccessDeniedException`. Requests routed through an AIP ARN will succeed.
