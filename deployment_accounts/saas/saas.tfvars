@@ -21,5 +21,15 @@ model_sources = [
     name     = "dev-claude-haiku-4-5"
     model_id = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
     team     = "development"
+  },
+  {
+    name     = "nova-pro-v1"
+    model_id = "amazon.nova-pro-v1:0"
+    team     = "development"
+  },
+  {
+    name     = "nova-lite-v1"
+    model_id = "amazon.nova-lite-v1:0"
+    team     = "development"
   }
 ]
