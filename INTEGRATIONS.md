@@ -28,16 +28,25 @@ Choose **Amazon Bedrock**, then enter your region and log in using your preferre
 
 ### Pin models to your AIPs
 
-Edit `~/.claude/settings.json` to add the following environment configuration.
+Edit `~/.claude/settings.json` to configure Bedrock with your AIP ARN. The `awsAuthRefresh` key tells Claude Code how to automatically re-authenticate when your AWS credentials expire — useful with SSO profiles that require periodic login.
+
+Use `ANTHROPIC_DEFAULT_<TIER>_MODEL_NAME` to pin each model tier to a specific AIP ARN. Claude Code routes different workloads to different tiers (e.g. Haiku for background tasks, Sonnet for primary interactions), so setting both ensures all traffic flows through your governed AIPs. The example below shows Sonnet and Haiku; add an Opus entry the same way if needed.
 
 ```json
-"env": {
-  "CLAUDE_CODE_USE_BEDROCK": "1",
-  "AWS_REGION": "us-east-1",
-  "ANTHROPIC_DEFAULT_SONNET_MODEL_NAME": "arn:aws:bedrock:us-east-1:<ACCOUNT_ID>:application-inference-profile/<SONNET_AIP_ID>",
-  "ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME": "arn:aws:bedrock:us-east-1:<ACCOUNT_ID>:application-inference-profile/<HAIKU_AIP_ID>"
+// ~/.claude/settings.json
+{
+  "awsAuthRefresh": "aws sso login --profile your-profile-name",
+  "env": {
+    "CLAUDE_CODE_USE_BEDROCK": "1",
+    "AWS_PROFILE": "your-profile-name",
+    "AWS_REGION": "us-east-1",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL_NAME": "arn:aws:bedrock:us-east-1:<ACCOUNT_ID>:application-inference-profile/<SONNET_AIP_ID>",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME": "arn:aws:bedrock:us-east-1:<ACCOUNT_ID>:application-inference-profile/<HAIKU_AIP_ID>"
+  }
 }
 ```
+
+When credentials expire, Claude Code runs the `awsAuthRefresh` command automatically and retries the request — no manual `aws sso login` required mid-session.
 
 ### Validate governance enforcement
 
