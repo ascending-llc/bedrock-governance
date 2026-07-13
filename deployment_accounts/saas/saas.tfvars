@@ -14,7 +14,7 @@ deploy_role_arn = "arn:aws:iam::897729109735:role/BedrockGovernanceDeployer"
 model_sources = [
   {
     name     = "claude-sonnet-5"
-    model_id = "us.anthropic.claude-sonnet-5"
+    model_id = "anthropic.claude-sonnet-5"
     team     = "development"
   },
   {
