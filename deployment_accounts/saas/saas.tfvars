@@ -13,22 +13,22 @@ deploy_role_arn = "arn:aws:iam::897729109735:role/BedrockGovernanceDeployer"
 # The team field is optional — omit it if you do not need team-level cost attribution.
 model_sources = [
   {
-    name     = "dev-claude-sonnet-4-6"
-    model_id = "us.anthropic.claude-sonnet-4-6"
+    name     = "claude-code-claude-sonnet-5"
+    model_id = "us.anthropic.claude-sonnet-5"
     team     = "development"
   },
   {
-    name     = "dev-claude-haiku-4-5"
+    name     = "claude-code-claude-haiku-4-5"
     model_id = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
     team     = "development"
   },
   {
-    name     = "nova-pro-v1"
+    name     = "claude-code-nova-pro-v1"
     model_id = "amazon.nova-pro-v1:0"
     team     = "development"
   },
   {
-    name     = "nova-lite-v1"
+    name     = "claude-code-nova-lite-v1"
     model_id = "amazon.nova-lite-v1:0"
     team     = "development"
   }
