@@ -21,6 +21,7 @@ Management Account
 Child Account
 ├── Application Inference Profiles (one per model)
 │   ├── bedrock-governance-claude-code-claude-sonnet-5-5
+│   ├── bedrock-governance-claude-code-claude-opus-5-5
 │   └── bedrock-governance-claude-code-claude-haiku-5-5
 ├── CloudWatch Anomaly Alarms (input + output tokens, per AIP)
 └── CloudTrail → S3 Audit Bucket

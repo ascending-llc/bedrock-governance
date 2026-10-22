@@ -18,6 +18,11 @@ model_sources = [
     team     = "development"
   },
   {
+    name     = "claude-code-claude-opus-5-5"
+    model_id = "us.anthropic.claude-opus-5-5"
+    team     = "development"
+  },
+  {
     name     = "claude-code-claude-haiku-5-5"
     model_id = "us.anthropic.claude-haiku-5-5"
     team     = "development"
