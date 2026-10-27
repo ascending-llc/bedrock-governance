@@ -28,6 +28,21 @@ model_sources = [
     team     = "development"
   },
   {
+    name     = "openai-gpt-6-1-sol"
+    model_id = "us.openai.gpt-6.1-sol"
+    team     = "development"
+  },
+  {
+    name     = "openai-gpt-6-1-terra"
+    model_id = "us.openai.gpt-6.1-terra"
+    team     = "development"
+  },
+  {
+    name     = "openai-gpt-6-luna"
+    model_id = "us.openai.gpt-6-luna"
+    team     = "development"
+  },
+  {
     name     = "claude-code-nova-pro-v1"
     model_id = "amazon.nova-pro-v1:0"
     team     = "development"
