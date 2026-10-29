@@ -19,6 +19,11 @@ locals {
     )
   }
 
+  # Temporary: Codex does not support AIP ARNs, so the global OpenAI system inference profiles are allowed without an AIP.
+  direct_access_inference_profile_arns = [
+    "arn:${data.aws_partition.current.partition}:bedrock:*:$${aws:PrincipalAccount}:inference-profile/global.openai.*"
+  ]
+
   anomaly_alarm_entries = merge([
     for key, model in local.child_models : {
       "${key}__InputTokenCount" = {
@@ -276,10 +281,13 @@ resource "aws_organizations_policy" "bedrock_approved_models" {
           "bedrock:InvokeModelWithResponseStream",
           "bedrock:CreateModelInvocationJob"
         ]
-        NotResource = [
-          "arn:${data.aws_partition.current.partition}:bedrock:*:$${aws:PrincipalAccount}:application-inference-profile/*",
-          "arn:${data.aws_partition.current.partition}:bedrock:*::foundation-model/*"
-        ]
+        NotResource = concat(
+          [
+            "arn:${data.aws_partition.current.partition}:bedrock:*:$${aws:PrincipalAccount}:application-inference-profile/*",
+            "arn:${data.aws_partition.current.partition}:bedrock:*::foundation-model/*"
+          ],
+          local.direct_access_inference_profile_arns
+        )
       },
       {
         Sid    = "DenyDirectFoundationModelInvocations"
@@ -294,11 +302,15 @@ resource "aws_organizations_policy" "bedrock_approved_models" {
           [
             for pattern in var.direct_access_model_id_patterns :
             "arn:${data.aws_partition.current.partition}:bedrock:*::foundation-model/${pattern}"
-          ]
+          ],
+          local.direct_access_inference_profile_arns
         )
         Condition = {
           ArnNotLike = {
-            "bedrock:InferenceProfileArn" = "arn:${data.aws_partition.current.partition}:bedrock:*:$${aws:PrincipalAccount}:application-inference-profile/*"
+            "bedrock:InferenceProfileArn" = concat(
+              ["arn:${data.aws_partition.current.partition}:bedrock:*:$${aws:PrincipalAccount}:application-inference-profile/*"],
+              local.direct_access_inference_profile_arns
+            )
           }
         }
       }
