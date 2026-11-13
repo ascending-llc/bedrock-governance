@@ -110,19 +110,7 @@ Copy the following values from the CloudFormation stack outputs into the config 
 | `DynamoDBTableName` (management bootstrap) | `child_backend.hcl` | `dynamodb_table` |
 | `ChildDeployRoleArn` (child bootstrap) | `child.tfvars` | `deploy_role_arn` |
 
-## Step 4 — Deploy management resources
-
-Initialize Terraform with the management backend, then apply.
-
-```bash
-terraform init -reconfigure -backend-config=deployment_accounts/example/management_backend.hcl
-terraform plan  -var-file=deployment_accounts/example/management.tfvars
-terraform apply -var-file=deployment_accounts/example/management.tfvars
-```
-
-This deploys the SCP and attaches it to the account/OU IDs listed in `scp_target_ids`.
-
-## Step 5 — Deploy child resources
+## Step 4 — Deploy child resources
 
 Reinitialize Terraform with the child backend, then apply.
 
@@ -133,6 +121,49 @@ terraform apply -var-file=deployment_accounts/example/child.tfvars
 ```
 
 This deploys AIPs, the CloudTrail trail, the audit S3 bucket, and CloudWatch anomaly alarms.
+For a POC that requires alert delivery, set exactly one of `alarm_email` or
+`alarm_sns_topic_arn` and set `require_alarm_notification = true`. Email targets
+must confirm the SNS subscription before delivery works; a test asserts alarms
+have a notification action when this guard is enabled.
+
+Capture the created profile ARNs:
+
+```bash
+terraform output -json inference_profile_arns
+```
+
+For strict SCP enforcement, copy only the approved AIP ARNs into
+`approved_application_inference_profile_arns` in the management tfvars. The
+management plan must not be generated until this list is populated. The child
+state also outputs `identity_center_bedrock_inference_policy_json`; review it
+and attach it through the customer's existing IAM Identity Center workflow.
+For CloudTrail API-to-selector coverage, see
+[`docs/bedrock-audit-event-coverage.md`](docs/bedrock-audit-event-coverage.md).
+
+## Step 5 — Deploy management resources
+
+Initialize Terraform with the management backend, then plan and review before
+applying.
+
+```bash
+terraform init -reconfigure -backend-config=deployment_accounts/example/management_backend.hcl
+terraform plan  -var-file=deployment_accounts/example/management.tfvars
+terraform apply -var-file=deployment_accounts/example/management.tfvars
+```
+
+This creates the SCP and attaches it to the account/OU IDs listed in
+`scp_target_ids`. In strict mode, the SCP allows only the exact AIP ARNs listed
+in `approved_application_inference_profile_arns`. The default compatibility
+mode retains the historical same-account AIP wildcard; enable strict mode for
+new POCs and migrate existing environments deliberately.
+
+To activate cost-allocation tags, set `cost_allocation_tag_keys` in management
+tfvars (for example `Project` and `Team`) after child resources with those tags
+exist. This requires `ce:ListCostAllocationTags` and
+`ce:UpdateCostAllocationTagsStatus` in the management/billing account. Cost
+Explorer data is delayed until AWS processes usage; Terraform does not create a
+dashboard or guarantee immediate cost visibility. See
+[`docs/cost-allocation-tags.md`](docs/cost-allocation-tags.md).
 
 > **Important:** Always run `terraform init -reconfigure` with the correct backend file before each management or child plan/apply. The two states share the same bucket but use different state keys. Omitting `-reconfigure` will silently use whichever backend was last initialized.
 

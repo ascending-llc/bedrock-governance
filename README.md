@@ -7,9 +7,13 @@ Terraform implementation for governing Amazon Bedrock usage across an AWS Organi
 | Feature | Description |
 |---|---|
 | **AIP Provisioning** | Terraform-managed Application Inference Profiles for each model. |
-| **Per-Model Anomaly Detection** | CloudWatch anomaly alarms on input and output token usage per AIP. Alerts when usage deviates from learned baselines. |
+| **Per-Model Anomaly Detection** | CloudWatch anomaly alarms on input and output token usage per AIP. Alerts when usage deviates from learned baselines. POCs can require an email-to-SNS or existing SNS notification target. |
+| **Alarm Delivery** | Configure an email-to-SNS subscription or an existing SNS topic ARN. POCs can require exactly one notification target. |
 | **Audit-Ready Logs** | Multi-region CloudTrail trail captures all Bedrock `InvokeModel` and async invocation events. Logs are encrypted, versioned, and retained for 30 days in an S3 bucket. |
-| **Access Control** | Service Control Policy (SCP) blocks direct foundation-model invocations org-wide, ensuring requests are attributable and observable. |
+| **Access Control** | SCP strict mode allows only explicitly approved AIP ARNs and denies direct foundation-model invocations. A legacy compatibility mode retains same-account AIP wildcard behavior. |
+| **Identity Center Policy** | Child-state output provides a least-privilege inference policy JSON for review and attachment to the customer's existing IAM Identity Center permission set. |
+| **Resource Tags** | Terraform applies Project, ManagedBy, and DeploymentMode tags to managed resources; optional Team tags distinguish profiles and alarms. |
+| **Cost Allocation** | Management state activates selected user-defined tags such as Project and Team for Cost Explorer/CUR after tagged child resources exist; billing visibility follows AWS processing. |
 
 ## Architecture
 
@@ -55,4 +59,8 @@ Requests flow: **caller → AIP ARN → foundation model**. The SCP allows invoc
 See [DEPLOYMENT.md](DEPLOYMENT.md) for full step-by-step deployment instructions.
 
 See [INTEGRATIONS.md](INTEGRATIONS.md) for how to connect Claude Code to your deployed AIPs.
+
+See [docs/identity-center-permissions.md](docs/identity-center-permissions.md) for the generated IAM Identity Center policy workflow.
+
+See [docs/cost-allocation-tags.md](docs/cost-allocation-tags.md) for tag activation and billing visibility prerequisites, and [docs/bedrock-audit-event-coverage.md](docs/bedrock-audit-event-coverage.md) for CloudTrail Runtime event coverage.
 
