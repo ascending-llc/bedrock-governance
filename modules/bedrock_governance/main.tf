@@ -6,6 +6,35 @@ locals {
   is_child      = var.deployment_mode == "child"
   is_management = var.deployment_mode == "management"
 
+  common_tags = {
+    Project        = "bedrock-governance"
+    ManagedBy      = "Terraform"
+    DeploymentMode = var.deployment_mode
+  }
+
+  cloudtrail_advanced_event_selectors = [
+    {
+      name = "ManagementEvents"
+      field_selectors = [
+        { field = "eventCategory", equals = ["Management"] }
+      ]
+    },
+    {
+      name = "BedrockModelDataEvents"
+      field_selectors = [
+        { field = "eventCategory", equals = ["Data"] },
+        { field = "resources.type", equals = ["AWS::Bedrock::Model"] }
+      ]
+    },
+    {
+      name = "BedrockAsyncInvokeDataEvents"
+      field_selectors = [
+        { field = "eventCategory", equals = ["Data"] },
+        { field = "resources.type", equals = ["AWS::Bedrock::AsyncInvoke"] }
+      ]
+    }
+  ]
+
   child_models = local.is_child ? {
     for m in var.model_sources : m.name => m
   } : {}
@@ -28,6 +57,57 @@ locals {
   direct_access_project_arns = [
     "arn:${data.aws_partition.current.partition}:bedrock:*:$${aws:PrincipalAccount}:project/default"
   ]
+
+  application_inference_profile_arns = var.enforce_approved_application_inference_profiles ? var.approved_application_inference_profile_arns : [
+    "arn:${data.aws_partition.current.partition}:bedrock:*:$${aws:PrincipalAccount}:application-inference-profile/*"
+  ]
+
+  child_application_inference_profile_arns = [
+    for profile in values(aws_bedrock_inference_profile.this) : profile.arn
+  ]
+
+  employee_inference_profile_arns = concat(
+    local.child_application_inference_profile_arns,
+    var.approved_codex_inference_profile_arns
+  )
+
+  employee_inference_actions = [
+    "bedrock:InvokeModel",
+    "bedrock:InvokeModelWithResponseStream"
+  ]
+
+  anomaly_notification_topic_arn = var.alarm_email != null ? try(aws_sns_topic.anomaly_alerts[0].arn, null) : var.alarm_sns_topic_arn
+
+  identity_center_bedrock_inference_policy_json = local.is_child ? jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      for statement in [
+        {
+          Sid      = "InvokeApprovedInferenceProfiles"
+          Effect   = "Allow"
+          Action   = local.employee_inference_actions
+          Resource = local.employee_inference_profile_arns
+        },
+        {
+          Sid      = "InvokeRoutedFoundationModelsOnlyThroughApprovedProfiles"
+          Effect   = "Allow"
+          Action   = local.employee_inference_actions
+          Resource = ["arn:${data.aws_partition.current.partition}:bedrock:*::foundation-model/*"]
+          Condition = {
+            ArnEquals = {
+              "bedrock:InferenceProfileArn" = local.employee_inference_profile_arns
+            }
+          }
+        },
+        {
+          Sid      = "InvokeApprovedCodexProjects"
+          Effect   = "Allow"
+          Action   = local.employee_inference_actions
+          Resource = var.approved_codex_project_arns
+        }
+      ] : statement if statement.Sid == "InvokeApprovedCodexProjects" ? length(var.approved_codex_project_arns) > 0 : length(local.employee_inference_profile_arns) > 0
+    ]
+  }) : null
 
   anomaly_alarm_entries = merge([
     for key, model in local.child_models : {
@@ -57,13 +137,15 @@ resource "aws_bedrock_inference_profile" "this" {
     copy_from = local.model_source_arns[each.key]
   }
 
-  tags = each.value.team != null ? { Team = each.value.team } : {}
+  tags = merge(local.common_tags, each.value.team != null ? { Team = each.value.team } : {})
 }
 
 resource "aws_sns_topic" "anomaly_alerts" {
   count = local.is_child && var.alarm_email != null ? 1 : 0
 
   name = "${var.resource_name_prefix}-bedrock-anomaly-alerts"
+
+  tags = local.common_tags
 }
 
 resource "aws_sns_topic_subscription" "anomaly_alerts_email" {
@@ -72,6 +154,13 @@ resource "aws_sns_topic_subscription" "anomaly_alerts_email" {
   topic_arn = aws_sns_topic.anomaly_alerts[0].arn
   protocol  = "email"
   endpoint  = var.alarm_email
+}
+
+resource "aws_ce_cost_allocation_tag" "this" {
+  for_each = local.is_management ? var.cost_allocation_tag_keys : toset([])
+
+  tag_key = each.value
+  status  = "Active"
 }
 
 resource "aws_cloudwatch_metric_alarm" "bedrock_anomaly" {
@@ -84,8 +173,8 @@ resource "aws_cloudwatch_metric_alarm" "bedrock_anomaly" {
   datapoints_to_alarm = 2
   treat_missing_data  = "notBreaching"
   threshold_metric_id = "ad1"
-  alarm_actions       = var.alarm_email != null ? [aws_sns_topic.anomaly_alerts[0].arn] : []
-  ok_actions          = var.alarm_email != null ? [aws_sns_topic.anomaly_alerts[0].arn] : []
+  alarm_actions       = local.anomaly_notification_topic_arn != null ? [local.anomaly_notification_topic_arn] : []
+  ok_actions          = local.anomaly_notification_topic_arn != null ? [local.anomaly_notification_topic_arn] : []
 
   metric_query {
     id          = "ad1"
@@ -108,7 +197,7 @@ resource "aws_cloudwatch_metric_alarm" "bedrock_anomaly" {
     }
   }
 
-  tags = each.value.team != null ? { Team = each.value.team } : {}
+  tags = merge(local.common_tags, each.value.team != null ? { Team = each.value.team } : {})
 }
 
 resource "aws_s3_bucket" "bedrock_audit" {
@@ -116,7 +205,7 @@ resource "aws_s3_bucket" "bedrock_audit" {
 
   bucket = "${var.resource_name_prefix}-bedrock-audit-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.name}"
 
-  tags = {}
+  tags = local.common_tags
 }
 
 resource "aws_s3_bucket_versioning" "bedrock_audit" {
@@ -223,49 +312,30 @@ resource "aws_cloudtrail" "bedrock" {
   name                          = "${var.resource_name_prefix}-bedrock-audit"
   s3_bucket_name                = aws_s3_bucket.bedrock_audit[0].bucket
   is_multi_region_trail         = true
+  enable_logging                = true
   enable_log_file_validation    = true
   include_global_service_events = true
 
-  advanced_event_selector {
-    name = "ManagementEvents"
+  dynamic "advanced_event_selector" {
+    for_each = local.cloudtrail_advanced_event_selectors
 
-    field_selector {
-      field  = "eventCategory"
-      equals = ["Management"]
-    }
-  }
+    content {
+      name = advanced_event_selector.value.name
 
-  advanced_event_selector {
-    name = "BedrockModelDataEvents"
+      dynamic "field_selector" {
+        for_each = advanced_event_selector.value.field_selectors
 
-    field_selector {
-      field  = "eventCategory"
-      equals = ["Data"]
-    }
-
-    field_selector {
-      field  = "resources.type"
-      equals = ["AWS::Bedrock::Model"]
-    }
-  }
-
-  advanced_event_selector {
-    name = "BedrockAsyncInvokeDataEvents"
-
-    field_selector {
-      field  = "eventCategory"
-      equals = ["Data"]
-    }
-
-    field_selector {
-      field  = "resources.type"
-      equals = ["AWS::Bedrock::AsyncInvoke"]
+        content {
+          field  = field_selector.value.field
+          equals = field_selector.value.equals
+        }
+      }
     }
   }
 
   depends_on = [aws_s3_bucket_policy.bedrock_audit]
 
-  tags = {}
+  tags = local.common_tags
 }
 
 resource "aws_organizations_policy" "bedrock_approved_models" {
@@ -287,10 +357,8 @@ resource "aws_organizations_policy" "bedrock_approved_models" {
           "bedrock:CreateModelInvocationJob"
         ]
         NotResource = concat(
-          [
-            "arn:${data.aws_partition.current.partition}:bedrock:*:$${aws:PrincipalAccount}:application-inference-profile/*",
-            "arn:${data.aws_partition.current.partition}:bedrock:*::foundation-model/*"
-          ],
+          local.application_inference_profile_arns,
+          ["arn:${data.aws_partition.current.partition}:bedrock:*::foundation-model/*"],
           local.direct_access_inference_profile_arns,
           local.direct_access_project_arns
         )
@@ -304,7 +372,7 @@ resource "aws_organizations_policy" "bedrock_approved_models" {
           "bedrock:CreateModelInvocationJob"
         ]
         NotResource = concat(
-          ["arn:${data.aws_partition.current.partition}:bedrock:*:$${aws:PrincipalAccount}:application-inference-profile/*"],
+          local.application_inference_profile_arns,
           [
             for pattern in var.direct_access_model_id_patterns :
             "arn:${data.aws_partition.current.partition}:bedrock:*::foundation-model/${pattern}"
@@ -315,7 +383,7 @@ resource "aws_organizations_policy" "bedrock_approved_models" {
         Condition = {
           ArnNotLike = {
             "bedrock:InferenceProfileArn" = concat(
-              ["arn:${data.aws_partition.current.partition}:bedrock:*:$${aws:PrincipalAccount}:application-inference-profile/*"],
+              local.application_inference_profile_arns,
               local.direct_access_inference_profile_arns
             )
           }
@@ -324,7 +392,7 @@ resource "aws_organizations_policy" "bedrock_approved_models" {
     ]
   })
 
-  tags = {}
+  tags = local.common_tags
 }
 
 resource "aws_organizations_policy_attachment" "bedrock_approved_models" {

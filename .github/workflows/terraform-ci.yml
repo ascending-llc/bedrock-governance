@@ -31,3 +31,6 @@ jobs:
 
       - name: Terraform validate
         run: terraform validate
+
+      - name: Terraform tests
+        run: terraform test
