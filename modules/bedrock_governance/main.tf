@@ -16,8 +16,7 @@ locals {
     {
       name = "ManagementEvents"
       field_selectors = [
-        { field = "eventCategory", equals = ["Management"] },
-        { field = "eventSource", equals = ["bedrock.amazonaws.com"] }
+        { field = "eventCategory", equals = ["Management"] }
       ]
     },
     {

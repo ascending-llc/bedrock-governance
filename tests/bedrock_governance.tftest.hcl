@@ -255,12 +255,21 @@ run "child_profiles_have_standard_tags_and_identity_policy" {
       flatten([
         for selector in output.cloudtrail_advanced_event_selectors : [
           for field_selector in selector.field_selectors : field_selector.equals
-          if field_selector.field == "eventSource"
+          if selector.name == "ManagementEvents" && field_selector.field == "eventCategory"
         ]
       ]),
-      "bedrock.amazonaws.com"
+      "Management"
     )
-    error_message = "Management events should be filtered to the Bedrock event source."
+    error_message = "CloudTrail must select management events for supported synchronous and conversational Runtime APIs."
+  }
+
+  assert {
+    condition = alltrue([
+      for selector in output.cloudtrail_advanced_event_selectors : selector.name != "ManagementEvents" || alltrue([
+        for field_selector in selector.field_selectors : field_selector.field != "eventSource"
+      ])
+    ])
+    error_message = "The current trail configuration intentionally captures all management event sources; verify the positive eventSource filter against CloudTrail before narrowing it."
   }
 
   assert {
