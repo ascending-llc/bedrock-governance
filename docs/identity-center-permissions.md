@@ -9,6 +9,8 @@ The generated policy:
 
 - Allows `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream` on the
   application inference profiles created from the child state's `model_sources`.
+- Allows `bedrock:GetInferenceProfile` on those application inference profiles so
+  Claude Code can resolve each one to its backing model.
 - Allows the underlying foundation-model resources only when
   `bedrock:InferenceProfileArn` identifies one of those approved profiles.
 - Includes only the Codex system inference profile and project ARNs explicitly

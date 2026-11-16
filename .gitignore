@@ -5,3 +5,6 @@
 crash.log
 *.auto.tfvars
 .DS_Store
+
+# Real account deployments stay local
+deployment_accounts/sandbox-*/

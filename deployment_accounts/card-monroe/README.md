@@ -2,7 +2,7 @@
 
 Configuration for deploying the Bedrock governance POC into Card Monroe's AWS
 environment. Based on a validated internal sandbox deployment (kept out of this
-repository). Nothing here has been applied.
+repository).
 
 ## Fill in before starting
 
