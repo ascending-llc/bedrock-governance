@@ -3,6 +3,19 @@ output "inference_profile_arns" {
   value       = { for key, profile in aws_bedrock_inference_profile.this : key => profile.arn }
 }
 
+output "inference_profile_ids" {
+  description = "Map of model source name to Bedrock inference profile ID (the CloudWatch ModelId dimension value)."
+  value       = { for key, profile in aws_bedrock_inference_profile.this : key => profile.id }
+}
+
+output "anomaly_alarm_metric_model_ids" {
+  description = "ModelId dimension value watched by each anomaly alarm."
+  value = {
+    for key, alarm in aws_cloudwatch_metric_alarm.bedrock_anomaly :
+    key => one([for q in alarm.metric_query : q.metric[0].dimensions["ModelId"] if q.id == "m1"])
+  }
+}
+
 output "cloudtrail_name" {
   description = "CloudTrail trail name for child deployments."
   value       = try(aws_cloudtrail.bedrock[0].name, null)
@@ -66,4 +79,9 @@ output "cost_allocation_tag_status" {
 output "cloudtrail_advanced_event_selectors" {
   description = "Advanced CloudTrail event selectors configured for the child trail."
   value       = local.cloudtrail_advanced_event_selectors
+}
+
+output "audit_log_expiration_days" {
+  description = "Retention (days) applied to CloudTrail log objects in the child audit bucket."
+  value       = local.is_child ? var.audit_log_retention_days : null
 }

@@ -43,6 +43,53 @@ variable "require_alarm_notification" {
   }
 }
 
+variable "break_glass_principal_arns" {
+  description = "IAM principal ARN patterns exempted from the Bedrock SCP deny statements (documented administrative / break-glass paths). Management mode only; empty means no exemption."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition = alltrue([
+      for arn in var.break_glass_principal_arns : can(regex("^arn:aws[^:]*:iam::([0-9]{12}|\\*):(role|user)/.+$", arn))
+    ])
+    error_message = "Each break-glass principal must be an IAM role or user ARN pattern (arn:aws:iam::<account-id or *>:role/...)."
+  }
+
+  validation {
+    condition     = var.deployment_mode == "management" || length(var.break_glass_principal_arns) == 0
+    error_message = "break_glass_principal_arns only applies to the SCP in management mode."
+  }
+}
+
+variable "audit_log_retention_days" {
+  description = "Days to retain CloudTrail log objects and noncurrent versions in the child audit bucket."
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = var.audit_log_retention_days >= 30 && floor(var.audit_log_retention_days) == var.audit_log_retention_days
+    error_message = "audit_log_retention_days must be a whole number of at least 30."
+  }
+}
+
+variable "allow_codex_scp_exceptions" {
+  description = "Exempt the global.openai.* system inference profiles and project/default from the Bedrock SCP so Codex can work without an application inference profile. Defaults to true to preserve existing deployments; set false where Codex is not in scope."
+  type        = bool
+  default     = true
+}
+
+variable "enable_bedrock_mantle_data_events" {
+  description = "Also record bedrock-mantle inference data events (AWS::BedrockMantle::Project), used by OpenAI-compatible clients such as Codex. Enable only after confirming the client's endpoint and that CloudTrail accepts the selector."
+  type        = bool
+  default     = false
+}
+
+variable "deny_bedrock_mantle_inference" {
+  description = "Add an SCP statement denying bedrock-mantle:CreateInference (except for break_glass_principal_arns), so clients cannot bypass the approved-profile controls through the bedrock-mantle endpoint. Management mode only."
+  type        = bool
+  default     = false
+}
+
 variable "deploy_role_arn" {
   description = "Optional IAM role ARN for provider-side deployments (assumed after backend auth)."
   type        = string

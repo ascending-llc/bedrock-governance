@@ -14,4 +14,9 @@ module "bedrock_governance" {
   direct_access_model_id_patterns                 = var.direct_access_model_id_patterns
   cost_allocation_tag_keys                        = var.cost_allocation_tag_keys
   model_sources                                   = var.model_sources
+  break_glass_principal_arns                      = var.break_glass_principal_arns
+  audit_log_retention_days                        = var.audit_log_retention_days
+  allow_codex_scp_exceptions                      = var.allow_codex_scp_exceptions
+  enable_bedrock_mantle_data_events               = var.enable_bedrock_mantle_data_events
+  deny_bedrock_mantle_inference                   = var.deny_bedrock_mantle_inference
 }

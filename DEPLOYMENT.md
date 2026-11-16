@@ -2,9 +2,11 @@
 
 ## Prerequisites
 
-1. Terraform 1.5+
+1. Terraform 1.9+
 2. AWS CLI configured with credentials for both the management account and each child account
 3. AWS Organizations enabled on the management account
+4. The identity running the child state needs `sts:AssumeRole` on `BedrockGovernanceDeployer` in its own permission set; the role's trust policy alone is not enough
+5. For cost-tag activation, `ce:ListCostAllocationTags` and `ce:UpdateCostAllocationTagsStatus` in the management/billing account
 
 ## Architecture overview
 
@@ -100,7 +102,7 @@ Use the `ChildDeployRoleArn` output from each stack instance when populating `ch
 
 ## Step 3 — Populate config files
 
-Copy the following values from the CloudFormation stack outputs into the config files in `deployment_accounts/example/` (or your copy of that folder).
+Copy the following values from the CloudFormation stack outputs into a per-customer copy of `deployment_accounts/example/` (for example `deployment_accounts/card-monroe/`); do not edit `example/` itself.
 
 | Output | File | Key |
 |---|---|---|
@@ -158,14 +160,35 @@ mode retains the historical same-account AIP wildcard; enable strict mode for
 new POCs and migrate existing environments deliberately.
 
 To activate cost-allocation tags, set `cost_allocation_tag_keys` in management
-tfvars (for example `Project` and `Team`) after child resources with those tags
-exist. This requires `ce:ListCostAllocationTags` and
+tfvars (for example `Project`, `Team` and `Model`) after child resources with
+those tags exist and have usage; billing can take about a day to recognize a new
+tag. This requires `ce:ListCostAllocationTags` and
 `ce:UpdateCostAllocationTagsStatus` in the management/billing account. Cost
 Explorer data is delayed until AWS processes usage; Terraform does not create a
 dashboard or guarantee immediate cost visibility. See
 [`docs/cost-allocation-tags.md`](docs/cost-allocation-tags.md).
 
 > **Important:** Always run `terraform init -reconfigure` with the correct backend file before each management or child plan/apply. The two states share the same bucket but use different state keys. Omitting `-reconfigure` will silently use whichever backend was last initialized.
+
+## Step 6 — Test
+
+Generate test traffic through each profile, then work through
+[`docs/live-acceptance-checklist.md`](docs/live-acceptance-checklist.md),
+substituting the account ID, resource prefix and profile IDs for the values at
+the top of that document.
+
+- The first invocation of each Anthropic model in an account creates an AWS
+  Marketplace agreement and sends a notification email. The caller needs
+  Marketplace permissions for this.
+- Each invocation is logged once, as a CloudTrail management event; the Bedrock
+  data selectors exclude those APIs and only capture async and bidirectional
+  calls. See [`docs/bedrock-audit-event-coverage.md`](docs/bedrock-audit-event-coverage.md).
+- The Identity Center administrator attaches
+  `identity_center_bedrock_inference_policy_json` to the pilot permission set;
+  then repeat the invocation and denial tests as a non-administrator user.
+- Codex exemptions in the SCP are controlled by `allow_codex_scp_exceptions`
+  (default `true` for backward compatibility); set it to `false` where Codex is
+  not in scope.
 
 ## Subsequent deployments
 

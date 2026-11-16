@@ -3,6 +3,16 @@ output "inference_profile_arns" {
   value       = module.bedrock_governance.inference_profile_arns
 }
 
+output "inference_profile_ids" {
+  description = "Map of model source name to Bedrock inference profile ID (the CloudWatch ModelId dimension value)."
+  value       = module.bedrock_governance.inference_profile_ids
+}
+
+output "anomaly_alarm_metric_model_ids" {
+  description = "ModelId dimension value watched by each anomaly alarm."
+  value       = module.bedrock_governance.anomaly_alarm_metric_model_ids
+}
+
 output "cloudtrail_name" {
   description = "CloudTrail name when deployment_mode is child."
   value       = module.bedrock_governance.cloudtrail_name
@@ -66,4 +76,9 @@ output "cost_allocation_tag_status" {
 output "cloudtrail_advanced_event_selectors" {
   description = "Advanced CloudTrail event selectors configured for the child trail."
   value       = module.bedrock_governance.cloudtrail_advanced_event_selectors
+}
+
+output "audit_log_expiration_days" {
+  description = "Retention (days) applied to CloudTrail log objects in the child audit bucket."
+  value       = module.bedrock_governance.audit_log_expiration_days
 }

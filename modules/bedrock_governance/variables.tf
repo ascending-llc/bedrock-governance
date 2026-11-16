@@ -85,6 +85,61 @@ variable "direct_access_model_id_patterns" {
   default     = []
 }
 
+variable "break_glass_principal_arns" {
+  description = <<-EOT
+    IAM principal ARN patterns exempted from the Bedrock SCP deny statements (documented
+    administrative / break-glass paths). Matched with ArnNotLike against aws:PrincipalArn, so use
+    the role ARN without the session name. Identity Center role paths may or may not include a
+    Region segment, so use a wildcard that spans both, e.g.
+    "arn:aws:iam::*:role/aws-reserved/sso.amazonaws.com/*AWSReservedSSO_BedrockBreakGlass_*".
+    Empty (default) means no exemption. Management mode only. Exempting a principal does not grant
+    it access; it still needs an IAM allow.
+  EOT
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition = alltrue([
+      for arn in var.break_glass_principal_arns : can(regex("^arn:aws[^:]*:iam::([0-9]{12}|\\*):(role|user)/.+$", arn))
+    ])
+    error_message = "Each break-glass principal must be an IAM role or user ARN pattern (arn:aws:iam::<account-id or *>:role/...)."
+  }
+
+  validation {
+    condition     = var.deployment_mode == "management" || length(var.break_glass_principal_arns) == 0
+    error_message = "break_glass_principal_arns only applies to the SCP in management mode."
+  }
+}
+
+variable "audit_log_retention_days" {
+  description = "Days to retain CloudTrail log objects (and noncurrent versions) in the child audit bucket. Confirm the value against the customer's audit/retention requirement."
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = var.audit_log_retention_days >= 30 && floor(var.audit_log_retention_days) == var.audit_log_retention_days
+    error_message = "audit_log_retention_days must be a whole number of at least 30."
+  }
+}
+
+variable "allow_codex_scp_exceptions" {
+  description = "Exempt the global.openai.* system inference profiles and project/default from the Bedrock SCP so Codex can work without an application inference profile. Defaults to true to preserve existing deployments; set false where Codex is not in scope."
+  type        = bool
+  default     = true
+}
+
+variable "enable_bedrock_mantle_data_events" {
+  description = "Also record bedrock-mantle inference data events (AWS::BedrockMantle::Project), used by OpenAI-compatible clients such as Codex. Enable only after confirming the client's endpoint and that CloudTrail accepts the selector."
+  type        = bool
+  default     = false
+}
+
+variable "deny_bedrock_mantle_inference" {
+  description = "Add an SCP statement denying bedrock-mantle:CreateInference (except for break_glass_principal_arns), so clients cannot bypass the approved-profile controls through the bedrock-mantle endpoint. Management mode only."
+  type        = bool
+  default     = false
+}
+
 variable "alarm_email" {
   description = "Optional email address to notify when an anomaly alarm transitions to ALARM or OK. If set, an SNS topic and email subscription are created automatically."
   type        = string

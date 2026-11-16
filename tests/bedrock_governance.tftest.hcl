@@ -178,7 +178,9 @@ run "child_profiles_have_standard_tags_and_identity_policy" {
       }
     ]
     approved_codex_inference_profile_arns = [
-      "arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.openai.gpt-6.1-sol"
+      "arn:aws:bedrock:us-east-1:123456789012:inference-profile/global.openai.gpt-6.1-sol",
+      "arn:aws:bedrock:us-east-1:123456789012:inference-profile/global.openai.gpt-6.1-terra",
+      "arn:aws:bedrock:us-east-1:123456789012:inference-profile/global.openai.gpt-6-luna"
     ]
     approved_codex_project_arns = [
       "arn:aws:bedrock:us-east-1:123456789012:project/default"
@@ -201,6 +203,16 @@ run "child_profiles_have_standard_tags_and_identity_policy" {
   }
 
   assert {
+    condition     = output.inference_profile_tags["sonnet"]["Model"] == "sonnet"
+    error_message = "AIPs must carry a Model tag so cost can be grouped per model."
+  }
+
+  assert {
+    condition     = output.anomaly_alarm_tags["sonnet__InputTokenCount"]["Model"] == "sonnet"
+    error_message = "Token alarms must carry the Model tag."
+  }
+
+  assert {
     condition     = output.anomaly_alarm_tags["sonnet__InputTokenCount"]["DeploymentMode"] == "child"
     error_message = "Token alarms must receive the standard DeploymentMode tag."
   }
@@ -216,8 +228,13 @@ run "child_profiles_have_standard_tags_and_identity_policy" {
   }
 
   assert {
-    condition     = strcontains(output.identity_center_bedrock_inference_policy_json, "us.openai.gpt-6.1-sol")
-    error_message = "The Identity Center policy must include only the explicitly configured Codex profile."
+    condition = alltrue([
+      strcontains(output.identity_center_bedrock_inference_policy_json, "global.openai.gpt-6.1-sol"),
+      strcontains(output.identity_center_bedrock_inference_policy_json, "global.openai.gpt-6.1-terra"),
+      strcontains(output.identity_center_bedrock_inference_policy_json, "global.openai.gpt-6-luna"),
+      !strcontains(output.identity_center_bedrock_inference_policy_json, "us.openai.")
+    ])
+    error_message = "The Identity Center policy must include only the explicitly configured Global Codex profiles."
   }
 
   assert {
@@ -234,6 +251,14 @@ run "child_profiles_have_standard_tags_and_identity_policy" {
   }
 
   assert {
+    condition = contains(
+      [for statement in jsondecode(output.identity_center_bedrock_inference_policy_json).Statement : statement.Sid],
+      "ResolveApprovedApplicationInferenceProfiles"
+    )
+    error_message = "The Identity Center policy must allow GetInferenceProfile on the approved AIPs for Claude Code."
+  }
+
+  assert {
     condition = alltrue(flatten([
       for statement in jsondecode(output.identity_center_bedrock_inference_policy_json).Statement : [
         for action in statement.Action : action != "bedrock:*"
@@ -247,7 +272,7 @@ run "child_profiles_have_standard_tags_and_identity_policy" {
       [for selector in output.cloudtrail_advanced_event_selectors : selector.name],
       "ManagementEvents"
     )
-    error_message = "CloudTrail must retain management event coverage for synchronous and conversational Runtime APIs."
+    error_message = "CloudTrail must retain management event coverage; InvokeModel*, Converse* and ListAsyncInvokes are recorded as management events."
   }
 
   assert {
@@ -260,7 +285,7 @@ run "child_profiles_have_standard_tags_and_identity_policy" {
       ]),
       "Management"
     )
-    error_message = "CloudTrail must select management events for supported synchronous and conversational Runtime APIs."
+    error_message = "CloudTrail must select management events; the Bedrock runtime invocation APIs (InvokeModel*, Converse*) are management events."
   }
 
   assert {
@@ -282,7 +307,7 @@ run "child_profiles_have_standard_tags_and_identity_policy" {
       ]),
       "AWS::Bedrock::Model"
     )
-    error_message = "CloudTrail must select Bedrock Model data events."
+    error_message = "CloudTrail must select Bedrock Model data events (InvokeModelWithBidirectionalStream, StartAsyncInvoke, GetAsyncInvoke)."
   }
 
   assert {
@@ -295,7 +320,55 @@ run "child_profiles_have_standard_tags_and_identity_policy" {
       ]),
       "AWS::Bedrock::AsyncInvoke"
     )
-    error_message = "CloudTrail must select Bedrock AsyncInvoke data events."
+    error_message = "CloudTrail must select Bedrock AsyncInvoke data events (StartAsyncInvoke, GetAsyncInvoke, InvokeModelWithBidirectionalStream)."
+  }
+}
+
+run "anomaly_alarms_watch_profile_id_dimension" {
+  command = plan
+
+  variables {
+    region               = "us-east-1"
+    resource_name_prefix = "test-governance"
+    deployment_mode      = "child"
+    model_sources = [
+      { name = "sonnet", model_id = "us.anthropic.claude-sonnet-5-5" }
+    ]
+  }
+
+  assert {
+    condition = alltrue([
+      for key, value in output.anomaly_alarm_metric_model_ids :
+      value == output.inference_profile_ids["sonnet"] && !startswith(value, "arn:")
+    ])
+    error_message = "CloudWatch publishes application-profile metrics under the profile ID, so alarms must use it as the ModelId dimension, not the ARN."
+  }
+}
+
+run "bedrock_data_selectors_exclude_management_recorded_invocations" {
+  command = plan
+
+  variables {
+    region               = "us-east-1"
+    resource_name_prefix = "test-governance"
+    deployment_mode      = "child"
+    model_sources = [
+      { name = "sonnet", model_id = "us.anthropic.claude-sonnet-5-5" }
+    ]
+  }
+
+  assert {
+    condition = alltrue([
+      for selector in output.cloudtrail_advanced_event_selectors : alltrue([
+        for op in ["Converse", "ConverseStream", "InvokeModel", "InvokeModelWithResponseStream"] :
+        contains(flatten([
+          for field_selector in selector.field_selectors : field_selector.not_equals
+          if field_selector.field == "eventName"
+        ]), op)
+      ])
+      if startswith(selector.name, "BedrockModel") || startswith(selector.name, "BedrockAsync")
+    ])
+    error_message = "Bedrock data selectors must exclude the invocation APIs the management selector already records, so each call is logged once."
   }
 }
 
@@ -320,4 +393,276 @@ run "existing_sns_topic_receives_alarm_actions" {
     condition     = contains(output.anomaly_alarm_actions["sonnet__InputTokenCount"], "arn:aws:sns:us-east-1:123456789012:alerts")
     error_message = "An existing SNS target must be attached to each anomaly alarm."
   }
+}
+
+run "scp_keeps_codex_exceptions_by_default" {
+  command = plan
+
+  variables {
+    region               = "us-east-1"
+    resource_name_prefix = "test-governance"
+    deployment_mode      = "management"
+    scp_target_ids       = ["123456789012"]
+  }
+
+  assert {
+    condition = alltrue([
+      strcontains(output.bedrock_approved_models_scp_json, "global.openai.*"),
+      strcontains(output.bedrock_approved_models_scp_json, "project/default")
+    ])
+    error_message = "The SCP must keep the Codex exceptions unless allow_codex_scp_exceptions is false."
+  }
+}
+
+run "scp_can_drop_codex_exceptions" {
+  command = plan
+
+  variables {
+    region                     = "us-east-1"
+    resource_name_prefix       = "test-governance"
+    deployment_mode            = "management"
+    scp_target_ids             = ["123456789012"]
+    allow_codex_scp_exceptions = false
+  }
+
+  assert {
+    condition = !anytrue([
+      strcontains(output.bedrock_approved_models_scp_json, "openai"),
+      strcontains(output.bedrock_approved_models_scp_json, "project/default")
+    ])
+    error_message = "With allow_codex_scp_exceptions = false the SCP must not mention the Codex exceptions."
+  }
+}
+
+run "scp_without_break_glass_has_no_principal_condition" {
+  command = plan
+
+  variables {
+    region               = "us-east-1"
+    resource_name_prefix = "legacy-governance"
+    deployment_mode      = "management"
+    scp_target_ids       = ["123456789012"]
+  }
+
+  assert {
+    condition     = !contains(keys(jsondecode(output.bedrock_approved_models_scp_json).Statement[0]), "Condition")
+    error_message = "With no break-glass principals the first deny statement must not carry a Condition."
+  }
+
+  assert {
+    condition     = !contains(keys(jsondecode(output.bedrock_approved_models_scp_json).Statement[1].Condition.ArnNotLike), "aws:PrincipalArn")
+    error_message = "With no break-glass principals the SCP must not reference aws:PrincipalArn."
+  }
+}
+
+run "scp_break_glass_principal_is_exempted_from_both_denies" {
+  command = plan
+
+  variables {
+    region               = "us-east-1"
+    resource_name_prefix = "test-governance"
+    deployment_mode      = "management"
+    scp_target_ids       = ["123456789012"]
+    break_glass_principal_arns = [
+      "arn:aws:iam::*:role/aws-reserved/sso.amazonaws.com/*AWSReservedSSO_BedrockBreakGlass_*"
+    ]
+  }
+
+  assert {
+    condition = contains(
+      jsondecode(output.bedrock_approved_models_scp_json).Statement[0].Condition.ArnNotLike["aws:PrincipalArn"],
+      "arn:aws:iam::*:role/aws-reserved/sso.amazonaws.com/*AWSReservedSSO_BedrockBreakGlass_*"
+    )
+    error_message = "The break-glass principal must be exempted from the resource-type deny."
+  }
+
+  assert {
+    condition = contains(
+      jsondecode(output.bedrock_approved_models_scp_json).Statement[1].Condition.ArnNotLike["aws:PrincipalArn"],
+      "arn:aws:iam::*:role/aws-reserved/sso.amazonaws.com/*AWSReservedSSO_BedrockBreakGlass_*"
+    )
+    error_message = "The break-glass principal must be exempted from the direct-foundation-model deny."
+  }
+
+  assert {
+    condition     = contains(keys(jsondecode(output.bedrock_approved_models_scp_json).Statement[1].Condition.ArnNotLike), "bedrock:InferenceProfileArn")
+    error_message = "Adding a break-glass principal must not remove the approved-profile exemption."
+  }
+}
+
+run "break_glass_rejects_bare_wildcard" {
+  command = plan
+
+  variables {
+    region                     = "us-east-1"
+    resource_name_prefix       = "test-governance"
+    deployment_mode            = "management"
+    scp_target_ids             = ["123456789012"]
+    break_glass_principal_arns = ["*"]
+  }
+
+  expect_failures = [var.break_glass_principal_arns]
+}
+
+run "break_glass_rejected_in_child_mode" {
+  command = plan
+
+  variables {
+    region                     = "us-east-1"
+    resource_name_prefix       = "test-governance"
+    deployment_mode            = "child"
+    break_glass_principal_arns = ["arn:aws:iam::123456789012:role/BreakGlass"]
+    model_sources = [
+      { name = "sonnet", model_id = "us.anthropic.claude-sonnet-5-5" }
+    ]
+  }
+
+  expect_failures = [var.break_glass_principal_arns]
+}
+
+run "audit_bucket_retention_defaults_to_30_days" {
+  command = plan
+
+  variables {
+    region               = "us-east-1"
+    resource_name_prefix = "test-governance"
+    deployment_mode      = "child"
+    model_sources = [
+      { name = "sonnet", model_id = "us.anthropic.claude-sonnet-5-5" }
+    ]
+  }
+
+  assert {
+    condition     = output.audit_log_expiration_days == 30
+    error_message = "Audit log retention must keep its existing 30 day default unless explicitly overridden."
+  }
+}
+
+run "mantle_deny_is_opt_in" {
+  command = plan
+
+  variables {
+    region               = "us-east-1"
+    resource_name_prefix = "test-governance"
+    deployment_mode      = "management"
+    scp_target_ids       = ["123456789012"]
+  }
+
+  assert {
+    condition     = length(jsondecode(output.bedrock_approved_models_scp_json).Statement) == 2
+    error_message = "The bedrock-mantle deny must be off by default."
+  }
+}
+
+run "mantle_deny_can_be_enabled_with_break_glass" {
+  command = plan
+
+  variables {
+    region                        = "us-east-1"
+    resource_name_prefix          = "test-governance"
+    deployment_mode               = "management"
+    scp_target_ids                = ["123456789012"]
+    deny_bedrock_mantle_inference = true
+    break_glass_principal_arns    = ["arn:aws:iam::*:role/aws-reserved/sso.amazonaws.com/*AWSReservedSSO_BedrockBreakGlass_*"]
+  }
+
+  assert {
+    condition = contains(
+      jsondecode(output.bedrock_approved_models_scp_json).Statement[2].Action,
+      "bedrock-mantle:CreateInference"
+    )
+    error_message = "The SCP must deny bedrock-mantle:CreateInference when enabled."
+  }
+
+  assert {
+    condition = contains(
+      jsondecode(output.bedrock_approved_models_scp_json).Statement[2].Condition.ArnNotLike["aws:PrincipalArn"],
+      "arn:aws:iam::*:role/aws-reserved/sso.amazonaws.com/*AWSReservedSSO_BedrockBreakGlass_*"
+    )
+    error_message = "The break-glass principal must be exempted from the bedrock-mantle deny."
+  }
+}
+
+run "mantle_data_events_are_opt_in" {
+  command = plan
+
+  variables {
+    region               = "us-east-1"
+    resource_name_prefix = "test-governance"
+    deployment_mode      = "child"
+    model_sources = [
+      { name = "sonnet", model_id = "us.anthropic.claude-sonnet-5-5" }
+    ]
+  }
+
+  assert {
+    condition     = !contains([for selector in output.cloudtrail_advanced_event_selectors : selector.name], "BedrockMantleProjectDataEvents")
+    error_message = "The bedrock-mantle data selector must be off by default."
+  }
+}
+
+run "mantle_data_events_can_be_enabled" {
+  command = plan
+
+  variables {
+    region                            = "us-east-1"
+    resource_name_prefix              = "test-governance"
+    deployment_mode                   = "child"
+    enable_bedrock_mantle_data_events = true
+    model_sources = [
+      { name = "sonnet", model_id = "us.anthropic.claude-sonnet-5-5" }
+    ]
+  }
+
+  assert {
+    condition = contains(
+      flatten([
+        for selector in output.cloudtrail_advanced_event_selectors : [
+          for field in selector.field_selectors : field.equals if field.field == "resources.type"
+        ]
+      ]),
+      "AWS::BedrockMantle::Project"
+    )
+    error_message = "Enabling mantle data events must add the AWS::BedrockMantle::Project data selector."
+  }
+
+  assert {
+    condition     = length(output.cloudtrail_advanced_event_selectors) == 4
+    error_message = "Enabling mantle data events must add exactly one selector to the existing three."
+  }
+}
+
+run "audit_bucket_retention_is_configurable" {
+  command = plan
+
+  variables {
+    region                   = "us-east-1"
+    resource_name_prefix     = "test-governance"
+    deployment_mode          = "child"
+    audit_log_retention_days = 400
+    model_sources = [
+      { name = "sonnet", model_id = "us.anthropic.claude-sonnet-5-5" }
+    ]
+  }
+
+  assert {
+    condition     = output.audit_log_expiration_days == 400
+    error_message = "Audit log expiration must follow audit_log_retention_days."
+  }
+}
+
+run "audit_retention_rejects_under_30_days" {
+  command = plan
+
+  variables {
+    region                   = "us-east-1"
+    resource_name_prefix     = "test-governance"
+    deployment_mode          = "child"
+    audit_log_retention_days = 7
+    model_sources = [
+      { name = "sonnet", model_id = "us.anthropic.claude-sonnet-5-5" }
+    ]
+  }
+
+  expect_failures = [var.audit_log_retention_days]
 }
