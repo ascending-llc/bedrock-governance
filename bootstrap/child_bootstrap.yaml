@@ -8,8 +8,8 @@ Parameters:
     Description: Name of the child deploy role used by Terraform provider assume-role.
 
   TrustedPrincipalArn:
-    Type: String
-    Description: IAM principal ARN allowed to assume the deploy role (typically a management execution role).
+    Type: CommaDelimitedList
+    Description: Comma-separated IAM principal ARNs allowed to assume the deploy role (for example a management execution role and a CI role). A single ARN also works.
 
 Resources:
   ChildDeployRole:

@@ -54,6 +54,8 @@ aws cloudformation deploy \
 
 Note the `ChildDeployRoleArn` value from the stack outputs — you will use it in Step 3.
 
+`TrustedPrincipalArn` accepts a comma-separated list, for example `'<ROLE_ARN_1>,<ROLE_ARN_2>'`. To add a CI role to an existing stack, update it with the full list; a single ARN, as used by earlier deployments, stays valid.
+
 ### Organizational Unit (OU) — CloudFormation StackSets
 
 For deployments across many accounts, use a SERVICE_MANAGED StackSet from the management account. This deploys `BedrockGovernanceDeployer` to every account in the OU in one operation, and automatically deploys to any account added to the OU in the future.
