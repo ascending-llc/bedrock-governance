@@ -143,7 +143,7 @@ This repository holds reusable code only. Account IDs, state buckets, role ARNs 
    }
    ```
 
-   The root `main.tf` here is a thin wrapper over `modules/bedrock_governance`; your repository supplies its own backend and provider configuration. Pin `ref` to a release tag.
+   The root `main.tf` here is a thin wrapper over `modules/bedrock_governance`; your repository supplies its own backend and provider configuration. Pin `ref` to a release tag. Inputs and outputs are in [modules/bedrock_governance/README.md](modules/bedrock_governance/README.md); a complete child plus management setup is in [examples/existing-terraform](examples/existing-terraform).
 
 ASCENDING-managed deployments keep their configuration in the private Operation repository and reference this module the same way.
 
