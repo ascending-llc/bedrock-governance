@@ -43,7 +43,7 @@ The "Confirmed live" results for this table are recorded in
 An unfiltered `AWS::Bedrock::Model` data selector also matches `Converse` and
 `ConverseStream` (and the invocation APIs generally), so each call was delivered
 to S3 twice: once with `eventCategory = Management` and once with `Data`, with
-the same `requestID` (observed live in the sandbox on November 15, 2026). The
+the same `requestID` (observed live). The
 Data copy is billed as a CloudTrail data event.
 
 The data selectors now exclude `Converse`, `ConverseStream`, `InvokeModel` and
@@ -91,7 +91,7 @@ clients must not place secrets in it.
 ## Why all management events are captured
 
 The attempted positive `eventSource Equals bedrock.amazonaws.com` selector
-paired with the Management category was rejected by CloudTrail in the sandbox
+paired with the Management category was rejected by CloudTrail in a test account
 deployment. AWS documents `eventSource` as a supported management selector
 field, so this should not be generalized to every operator or trail
 configuration. Verify any narrower selector against the target trail before

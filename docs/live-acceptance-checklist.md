@@ -4,35 +4,34 @@ Purpose: prove in a deployed account what Terraform tests cannot: that the
 deployed controls behave as the SOW describes. Record evidence (command output,
 screenshot, or ticket link) in the **Evidence** column and mark Pass/Fail.
 
-The values below are the sandbox deployment's. For another account (for example
-Card Monroe), replace them with that deployment's: the account IDs, the
+Replace the placeholders below with the deployment's values: the account IDs, the
 `resource_name_prefix` from its tfvars, and the profile IDs from the child
 state's `terraform output -json inference_profile_ids`. Model names in the check
 commands (`claude-sonnet-5-5` and so on) assume the `model_sources` names in
-its `child.tfvars`.
+its `child.tfvars`. Keep the filled-in copy in your private deployment repo.
 
 | Setting | Value |
 | --- | --- |
-| Child (sandbox) account | `806709759688` |
-| Management account | `595312265488` |
+| Child account | `<CHILD_ACCOUNT_ID>` |
+| Management account | `<MANAGEMENT_ACCOUNT_ID>` |
 | Region | `us-east-1` |
-| Resource prefix | `bg-sbx-806709759688` |
-| Trail | `bg-sbx-806709759688-bedrock-audit` |
-| Audit bucket | `bg-sbx-806709759688-bedrock-audit-806709759688-us-east-1` |
-| SNS topic | `bg-sbx-806709759688-bedrock-anomaly-alerts` |
-| Profiles (Sonnet / Opus / Haiku) | `26922ogrv2x7` / `6jng5qzaukt0` / `u3iz2pefdnwh` |
+| Resource prefix | `<RESOURCE_NAME_PREFIX>` |
+| Trail | `<RESOURCE_NAME_PREFIX>-bedrock-audit` |
+| Audit bucket | `<RESOURCE_NAME_PREFIX>-bedrock-audit-<CHILD_ACCOUNT_ID>-us-east-1` |
+| SNS topic | `<RESOURCE_NAME_PREFIX>-bedrock-anomaly-alerts` |
+| Profiles (Sonnet / Opus / Haiku) | `<SONNET_PROFILE_ID>` / `<OPUS_PROFILE_ID>` / `<HAIKU_PROFILE_ID>` |
 
-Run child-account commands with a sandbox-account profile, SCP/billing commands
+Run child-account commands with a child-account profile, SCP/billing commands
 with the management-account profile, and invocation tests as an **ordinary pilot
 user** (SSO), not an administrator. Set up shell variables once:
 
 ```bash
 export AWS_REGION=us-east-1
-export PREFIX=bg-sbx-806709759688
-export ACCT=806709759688
-export AIP_SONNET=arn:aws:bedrock:us-east-1:$ACCT:application-inference-profile/26922ogrv2x7
-export AIP_OPUS=arn:aws:bedrock:us-east-1:$ACCT:application-inference-profile/6jng5qzaukt0
-export AIP_HAIKU=arn:aws:bedrock:us-east-1:$ACCT:application-inference-profile/u3iz2pefdnwh
+export PREFIX=<RESOURCE_NAME_PREFIX>
+export ACCT=<CHILD_ACCOUNT_ID>
+export AIP_SONNET=arn:aws:bedrock:us-east-1:$ACCT:application-inference-profile/<SONNET_PROFILE_ID>
+export AIP_OPUS=arn:aws:bedrock:us-east-1:$ACCT:application-inference-profile/<OPUS_PROFILE_ID>
+export AIP_HAIKU=arn:aws:bedrock:us-east-1:$ACCT:application-inference-profile/<HAIKU_PROFILE_ID>
 export BUCKET=$PREFIX-bedrock-audit-$ACCT-$AWS_REGION
 export TRAIL=$PREFIX-bedrock-audit
 export TOPIC_ARN=arn:aws:sns:$AWS_REGION:$ACCT:$PREFIX-bedrock-anomaly-alerts
@@ -50,7 +49,7 @@ inspect. Note the time you start (`date -u`) so you can find your events. The
 | --- | --- | --- | --- | --- | --- |
 | A1 | One APPLICATION profile per approved model, named `<prefix>-<name>` | `aws bedrock list-inference-profiles --type-equals APPLICATION --query 'inferenceProfileSummaries[].[inferenceProfileName,inferenceProfileArn,status]' --output table` | Three profiles, `ACTIVE`, ARNs match the table above | | |
 | A2 | Each profile carries `Project`, `ManagedBy`, `DeploymentMode`, `Team`, **`Model`** | `aws bedrock list-tags-for-resource --resource-arn $AIP_SONNET` (repeat for Opus, Haiku) | `Model` equals the profile's model name (`claude-sonnet-5-5`, etc.); other tags present | | |
-| A3 | Each profile points at the intended model | `aws bedrock get-inference-profile --inference-profile-identifier 26922ogrv2x7 --query 'models'` | Model ARNs belong to the expected Claude model | | |
+| A3 | Each profile points at the intended model | `aws bedrock get-inference-profile --inference-profile-identifier <SONNET_PROFILE_ID> --query 'models'` | Model ARNs belong to the expected Claude model | | |
 | A4 | Approved profile works for a pilot user (generates traffic) | `aws bedrock-runtime converse --model-id $AIP_SONNET --messages '[{"role":"user","content":[{"text":"ping"}]}]' --inference-config maxTokens=20` | Returns a response. Repeat with `$AIP_HAIKU` and `$AIP_OPUS`. Also run one streaming call (`converse-stream`) | | |
 
 ## B. CloudWatch metrics (SOW: per-model usage attribution and metrics)
@@ -59,9 +58,9 @@ Metrics can lag a few minutes after traffic. Run A4 first.
 
 | # | Check | Command | Expected | Pass/Fail | Evidence |
 | --- | --- | --- | --- | --- | --- |
-| B1 | **Confirm the real metric dimension value** (verified in the sandbox: `ModelId` is the profile **ID**, e.g. `u3iz2pefdnwh`, not the ARN; the alarms use the ID) | `aws cloudwatch list-metrics --namespace AWS/Bedrock --metric-name InputTokenCount` | A metric exists whose `ModelId` dimension value is exactly the profile ID (`26922ogrv2x7` Sonnet, `6jng5qzaukt0` Opus, `u3iz2pefdnwh` Haiku), and the deployed alarm's `m1` dimension matches it (`describe-alarms`). If the alarm dimension differs, it watches an empty series and never fires (missing data is treated as not breaching) | | |
+| B1 | **Confirm the real metric dimension value** (verified live: `ModelId` is the profile **ID**, e.g. `<HAIKU_PROFILE_ID>`, not the ARN; the alarms use the ID) | `aws cloudwatch list-metrics --namespace AWS/Bedrock --metric-name InputTokenCount` | A metric exists whose `ModelId` dimension value is exactly the profile ID (for example `<SONNET_PROFILE_ID>`), and the deployed alarm's `m1` dimension matches it (`describe-alarms`). If the alarm dimension differs, it watches an empty series and never fires (missing data is treated as not breaching) | | |
 | B2 | Output tokens are published per profile | `aws cloudwatch list-metrics --namespace AWS/Bedrock --metric-name OutputTokenCount` | Same three dimension values | | |
-| B3 | Values are non-zero and attributable per model | `aws cloudwatch get-metric-statistics --namespace AWS/Bedrock --metric-name InputTokenCount --dimensions Name=ModelId,Value=26922ogrv2x7 --start-time $(date -u -v-1H +%FT%TZ) --end-time $(date -u +%FT%TZ) --period 300 --statistics Sum` | Non-zero Sum for the profile you called; zero/absent for profiles you did not call | | |
+| B3 | Values are non-zero and attributable per model | `aws cloudwatch get-metric-statistics --namespace AWS/Bedrock --metric-name InputTokenCount --dimensions Name=ModelId,Value=<SONNET_PROFILE_ID> --start-time $(date -u -v-1H +%FT%TZ) --end-time $(date -u +%FT%TZ) --period 300 --statistics Sum` | Non-zero Sum for the profile you called; zero/absent for profiles you did not call | | |
 
 ## C. Anomaly alarms and SNS delivery (SOW: anomaly detection, alert delivery)
 
@@ -99,7 +98,7 @@ Allow 15 minutes after A4 for delivery.
 
 ## E. SCP enforcement (SOW: organization-level access control)
 
-Run as an ordinary pilot user in the sandbox account. All "denied" results
+Run as an ordinary pilot user in the child account. All "denied" results
 should name an **explicit deny in a service control policy**; a plain
 "no identity-based policy allows" message means IAM, not the SCP, is blocking
 you, which does not prove the SCP works. If you can, retest the denials with a
@@ -110,20 +109,20 @@ role that has broad Bedrock IAM permissions, to isolate the SCP.
 | E1 | Approved profile allowed (sync, streaming, converse) | A4 commands | Success | | |
 | E2 | Direct foundation-model ID denied | `aws bedrock-runtime converse --model-id anthropic.claude-sonnet-5-5 --messages '[{"role":"user","content":[{"text":"x"}]}]'` (use the actual base model ID; it may also fail on model or inference-type requirements, which is not the result we want to see) | `AccessDeniedException` referencing an explicit deny in a service control policy | | |
 | E3 | System (cross-Region) inference profile denied | `aws bedrock-runtime converse --model-id us.anthropic.claude-sonnet-5-5 --messages '[{"role":"user","content":[{"text":"x"}]}]'` | Explicit SCP deny | | |
-| E4 | A profile **not** on the approved list is denied (strict mode) | Create a throwaway application profile in the sandbox (or use one outside the approved three), then converse against it | Explicit SCP deny. Delete the throwaway profile afterward | | |
+| E4 | A profile **not** on the approved list is denied (strict mode) | Create a throwaway application profile in the child account (or use one outside the approved three), then converse against it | Explicit SCP deny. Delete the throwaway profile afterward | | |
 | E5 | Invoke-model and streaming APIs | Repeat E2 with `invoke-model` and `invoke-model-with-response-stream` | Denied for direct FM, allowed for approved profiles | | |
 | E6 | Async and bidirectional | Only if a client uses them. `StartAsyncInvoke` follows `bedrock:InvokeModel`. **`InvokeModelWithBidirectionalStream` is not covered by the SCP.** Test it and record the result so the customer can decide | Document outcome | | |
-| E7 | Codex exceptions behave as documented (temporary) | Global `openai.*` profile and `project/default` | Allowed only where the Identity Center policy permits; no model agreement is accepted in the sandbox, so expect a model-access error rather than an SCP deny | | |
-| E7a | **Which endpoint does Codex use?** | Check the client's provider (`amazon-bedrock-runtime` vs `amazon-bedrock`, see `deployment_accounts/card-monroe/INTEGRATIONS.md`) and, after a call, the event source in CloudTrail | AWS and OpenAI both recommend `bedrock-runtime` for Codex; confirm that is what it uses and that the call is recorded as a `bedrock.amazonaws.com` event. If `bedrock-mantle`: set `enable_bedrock_mantle_data_events = true`, re-run D2, and confirm `bedrock-mantle.amazonaws.com` `CreateInference` data events arrive. Also record which IAM actions the call needs and whether the SCP denied or allowed them | | |
+| E7 | Codex exceptions behave as documented (temporary) | Global `openai.*` profile and `project/default` | Allowed only where the Identity Center policy permits; no model agreement is accepted in the account, so expect a model-access error rather than an SCP deny | | |
+| E7a | **Which endpoint does Codex use?** | Check the client's provider (`amazon-bedrock-runtime` vs `amazon-bedrock`, see `INTEGRATIONS.md`) and, after a call, the event source in CloudTrail | AWS and OpenAI both recommend `bedrock-runtime` for Codex; confirm that is what it uses and that the call is recorded as a `bedrock.amazonaws.com` event. If `bedrock-mantle`: set `enable_bedrock_mantle_data_events = true`, re-run D2, and confirm `bedrock-mantle.amazonaws.com` `CreateInference` data events arrive. Also record which IAM actions the call needs and whether the SCP denied or allowed them | | |
 | E8 | **Break-glass role (only if configured)** | `aws sts get-caller-identity` as the role to confirm the ARN matches the configured pattern, then run E2 | Not blocked by the SCP (may still fail for IAM or model-access reasons). Confirm an alert or review exists for its use | | |
-| E9 | Scope is the POC only | `aws organizations list-targets-for-policy --policy-id <scp-id>` (management account) | Only account `806709759688`; not an OU or root | | |
+| E9 | Scope is the POC only | `aws organizations list-targets-for-policy --policy-id <scp-id>` (management account) | Only the child account; not an OU or root | | |
 
 ## F. Identity Center (SOW: SSO integration)
 
 | # | Check | Command | Expected | Pass/Fail | Evidence |
 | --- | --- | --- | --- | --- | --- |
 | F1 | Pilot user signs in with existing SSO flow | `aws sso login --profile <pilot-profile>`; `aws sts get-caller-identity --profile <pilot-profile>` | ARN is an `AWSReservedSSO_...` role session for the user | | |
-| F2 | Permission set carries the generated Bedrock policy | `aws sso-admin get-inline-policy-for-permission-set ...` (see sandbox `DEPLOYMENT.md`) | Statements `InvokeApprovedInferenceProfiles`, `InvokeRoutedFoundationModelsOnlyThroughApprovedProfiles` (and the Codex project statement if configured) present, existing statements preserved | | |
+| F2 | Permission set carries the generated Bedrock policy | `aws sso-admin get-inline-policy-for-permission-set ...` (see `docs/identity-center-permissions.md`) | Statements `InvokeApprovedInferenceProfiles`, `InvokeRoutedFoundationModelsOnlyThroughApprovedProfiles` (and the Codex project statement if configured) present, existing statements preserved | | |
 | F3 | Least privilege | Attempt `aws bedrock create-inference-profile` and an unapproved model as the pilot user | Denied | | |
 | F4 | Attribution | CloudTrail event from D4 shows the SSO user (not a shared role session name) | `userIdentity` identifies the individual | | |
 
@@ -138,6 +137,66 @@ role that has broad Bedrock IAM permissions, to isolate the SCP.
 
 ---
 
+## H. Daily cost alerts and limits (optional; only when `pricing` is configured)
+
+Use a low `daily_cost_limit_usd` on a test profile (for example `$0.05`) so a
+few calls trip it. Cost is estimated from token metrics, so allow a few minutes
+for metrics and the next enforcer run. Set `export FN=$PREFIX-bedrock-cost-limit-enforcer`
+and `export BLOCK_POLICY=arn:aws:iam::$ACCT:policy/$PREFIX-bedrock-cost-limit-block`.
+
+| # | Check | Command | Expected | Pass/Fail | Evidence |
+| --- | --- | --- | --- | --- | --- |
+| H1 | Enforcer deployed and scheduled | `aws lambda get-function --function-name $FN --query 'Configuration.[State,Runtime]'`; `aws events describe-rule --name $PREFIX-bedrock-cost-limit-schedule --query '[State,ScheduleExpression]'` | `Active`; rule `ENABLED` at the configured interval | | |
+| H2 | Cost metric published per profile | `aws cloudwatch list-metrics --namespace BedrockGovernance --metric-name EstimatedDailyCostUSD` | One metric per priced profile, `ModelId` = profile ID | | |
+| H3 | Estimate is plausible | Compare the latest `EstimatedDailyCostUSD` datapoint with `InputTokenCount`/`OutputTokenCount` sums x your configured prices | Within rounding. If cache tokens are used, confirm `CacheReadInputTokenCount`/`CacheWriteInputTokenCount` exist for the profile | | |
+| H4 | Alert alarm fires | Drive spend past the alert threshold, then `aws cloudwatch describe-alarms --alarm-names $PREFIX-<name>-daily-cost-alert --query 'MetricAlarms[].StateValue'` | `ALARM`; notification email arrives | | |
+| H5 | Limit blocks the profile | Drive spend past `daily_cost_limit_usd`, wait for the next run, then repeat A4 against that profile as a pilot user | `AccessDeniedException` naming an explicit deny in an identity-based policy; other profiles still work | | |
+| H6 | Block policy content | `aws iam get-policy-version --policy-arn $BLOCK_POLICY --version-id $(aws iam get-policy --policy-arn $BLOCK_POLICY --query Policy.DefaultVersionId --output text)` | Statement `DenyBlockedInferenceProfiles` lists the blocked profile ARN | | |
+| H7 | Limit alarm notifies | `aws cloudwatch describe-alarms --alarm-names $PREFIX-<name>-daily-cost-limit` | `ALARM` and an email while blocked | | |
+| H8 | Block lifts | Raise `daily_cost_limit_usd` and apply (or wait past 00:00 UTC); after the next run repeat A4 | Call succeeds; policy reverts to `NoProfilesBlocked`; limit alarm returns to `OK` | | |
+| H9 | Block policy is attached | Permission set (or listed roles) references the policy | Without it H5 will not deny; record where it is attached | | |
+| H10 | Enforcer failures alert | `aws cloudwatch describe-alarms --alarm-names $PREFIX-bedrock-cost-limit-enforcer-errors` | Alarm exists and notifies the SNS target | | |
+
+---
+
+## I. Desktop configuration and pilot onboarding (SOW: macOS/Windows standard configuration, 5 pilot users)
+
+The client policies come from
+[coding-agent-3p](https://github.com/ascending-llc/coding-agent-3p) (see
+`DEPLOYMENT.md` Step 7). Run I1-I4 once, then I5 for every pilot user and record
+the result in the matrix below. Cover both macOS and Windows and both Claude and
+Codex across the five users.
+
+| # | Check | Command | Expected | Pass/Fail | Evidence |
+| --- | --- | --- | --- | --- | --- |
+| I1 | Artifacts generated for both platforms | In coding-agent-3p: `make policies PRODUCTS="claude codex"`, then `grep -r REPLACE_WITH_ dist/` | macOS `.mobileconfig` (Claude, Codex), Windows `.reg`, Codex `requirements.toml` and `aws-config-CCWB.ini` exist; the grep finds nothing | | |
+| I2 | Config matches the deployment | Compare `config/config.json` with `terraform output -json inference_profile_ids` and `inference_profile_arns` | Each `claude.models.<tier>.aip_arn` is a deployed AIP ARN; `codex.default_model` is in `approved_codex_inference_profile_arns`; `aws.sso_role_name` is the permission set carrying the generated policy | | |
+| I3 | Policies delivered | macOS: profile listed in System Settings > Privacy & Security > Profiles. Windows: policy applied per the coding-agent-3p admin guide | Installed on at least one Mac and one Windows machine | | |
+| I4 | Clients cannot be re-pointed | Try to change the provider or AIP in the client as the pilot user | Managed settings win (Claude Desktop/Code policy, Codex `requirements.toml`). Note that this controls the route only; IAM and the SCP remain the authorization boundary | | |
+| I5 | Per-user verification | See the matrix below | Every column passes for every user | | |
+
+Per-user checks (commands as in A4, E2 and D4):
+
+- **Sign-in**: `aws sso login --profile CCWB` opens the Identity Center flow and
+  `aws sts get-caller-identity --profile CCWB` shows the user's `AWSReservedSSO_` role session.
+- **Claude**: a prompt in Claude Desktop and in Claude Code succeeds, and the
+  AIP's `InputTokenCount` metric increases (check B3).
+- **Codex**: a prompt in Codex / ChatGPT Desktop succeeds through
+  `amazon-bedrock-runtime`; CloudTrail shows the call under the user's role session.
+- **Denied**: a direct foundation-model call from the CLI returns an explicit SCP deny (E2).
+- **Audit**: `aws cloudtrail lookup-events --lookup-attributes AttributeKey=Username,AttributeValue=<user>`
+  shows the user's `Converse`/`InvokeModel` events.
+
+| User | OS | Sign-in | Claude Desktop | Claude Code | Codex | Direct call denied | CloudTrail shows user | Pass/Fail |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | | | | | | | | |
+| 2 | | | | | | | | |
+| 3 | | | | | | | | |
+| 4 | | | | | | | | |
+| 5 | | | | | | | | |
+
+---
+
 ## Sign-off
 
 | Area | Result | Date | Reviewer |
@@ -149,9 +208,12 @@ role that has broad Bedrock IAM permissions, to isolate the SCP.
 | E SCP | | | |
 | F Identity Center | | | |
 | G Cost allocation | | | |
+| H Daily cost alerts and limits | | | |
+| I Desktop configuration and pilot onboarding | | | |
 
 Known limits to state when presenting results: the anomaly band needs usage
 history before it is meaningful; cost data is delayed and tag activation is not
-a dashboard, budget, or spending cap; CloudTrail records metadata, not
+a dashboard or budget; the daily cost limit is a token-metric estimate with a
+scheduled check, not a hard billing cap; CloudTrail records metadata, not
 prompts/responses; a break-glass exemption widens access and needs its own
 approval and monitoring.

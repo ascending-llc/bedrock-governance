@@ -19,4 +19,8 @@ module "bedrock_governance" {
   allow_codex_scp_exceptions                      = var.allow_codex_scp_exceptions
   enable_bedrock_mantle_data_events               = var.enable_bedrock_mantle_data_events
   deny_bedrock_mantle_inference                   = var.deny_bedrock_mantle_inference
+  cost_alert_threshold_percent                    = var.cost_alert_threshold_percent
+  enforce_daily_cost_limits                       = var.enforce_daily_cost_limits
+  cost_check_interval_minutes                     = var.cost_check_interval_minutes
+  cost_limit_block_policy_role_names              = var.cost_limit_block_policy_role_names
 }

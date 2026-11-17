@@ -85,3 +85,43 @@ output "audit_log_expiration_days" {
   description = "Retention (days) applied to CloudTrail log objects in the child audit bucket."
   value       = local.is_child ? var.audit_log_retention_days : null
 }
+
+output "cost_limit_block_policy_arn" {
+  description = "ARN of the managed policy the cost enforcer rewrites to deny profiles over their daily limit. Null when no profile sets daily_cost_limit_usd."
+  value       = try(aws_iam_policy.cost_limit_block[0].arn, null)
+}
+
+output "cost_limit_block_policy_name" {
+  description = "Name of the cost-limit block policy. Reference it (path /) as a customer managed policy in each IAM Identity Center permission set that can invoke the profiles."
+  value       = try(aws_iam_policy.cost_limit_block[0].name, null)
+}
+
+output "cost_enforcer_function_name" {
+  description = "Name of the cost limit enforcer Lambda function. Null when no profile sets pricing."
+  value       = try(aws_lambda_function.cost_enforcer[0].function_name, null)
+}
+
+output "cost_alert_thresholds_usd" {
+  description = "Estimated daily cost (USD) at which each profile's cost alert fires."
+  value       = { for key, value in local.cost_alert_thresholds : key => value }
+}
+
+output "cost_alert_alarm_names" {
+  description = "Map of model source name to its daily cost alert alarm name."
+  value       = { for key, alarm in aws_cloudwatch_metric_alarm.cost_alert : key => alarm.alarm_name }
+}
+
+output "cost_limit_alarm_names" {
+  description = "Map of model source name to its daily cost limit alarm name."
+  value       = { for key, alarm in aws_cloudwatch_metric_alarm.cost_limit : key => alarm.alarm_name }
+}
+
+output "cost_alert_alarm_actions" {
+  description = "Notification actions configured for each cost alert alarm."
+  value       = { for key, alarm in aws_cloudwatch_metric_alarm.cost_alert : key => alarm.alarm_actions }
+}
+
+output "cost_daily_limits_usd" {
+  description = "Configured daily cost limit (USD) per profile."
+  value       = { for key, model in local.cost_limit_models : key => model.daily_cost_limit_usd }
+}

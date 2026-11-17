@@ -187,11 +187,24 @@ variable "cost_allocation_tag_keys" {
 }
 
 variable "model_sources" {
-  description = "Model IDs used to create application inference profiles and alarms in child mode."
+  description = <<-EOT
+    Model IDs used to create application inference profiles and alarms in child mode.
+    pricing (USD per million tokens) enables per-profile cost estimation. daily_cost_alert_usd sends
+    an alert when the estimated UTC-day cost reaches it; daily_cost_limit_usd blocks the profile when
+    it is reached. Both require pricing.
+  EOT
   type = list(object({
     name     = string
     model_id = string
     team     = optional(string)
+    pricing = optional(object({
+      input_per_million       = number
+      output_per_million      = number
+      cache_read_per_million  = optional(number, 0)
+      cache_write_per_million = optional(number, 0)
+    }))
+    daily_cost_limit_usd = optional(number)
+    daily_cost_alert_usd = optional(number)
   }))
 
   validation {
@@ -208,4 +221,56 @@ variable "model_sources" {
     condition     = alltrue([for m in var.model_sources : m.team == null || length(trimspace(m.team)) > 0])
     error_message = "Each model_sources entry with a team must have a non-empty team value."
   }
+
+  validation {
+    condition = alltrue([
+      for m in var.model_sources : (m.daily_cost_limit_usd == null && m.daily_cost_alert_usd == null) || m.pricing != null
+    ])
+    error_message = "Each model_sources entry with daily_cost_limit_usd or daily_cost_alert_usd must set pricing."
+  }
+
+  validation {
+    condition = alltrue([
+      for m in var.model_sources : alltrue([
+        m.daily_cost_limit_usd == null || m.daily_cost_limit_usd > 0,
+        m.daily_cost_alert_usd == null || m.daily_cost_alert_usd > 0,
+        m.pricing == null || (m.pricing.input_per_million >= 0 && m.pricing.output_per_million >= 0 && m.pricing.cache_read_per_million >= 0 && m.pricing.cache_write_per_million >= 0)
+      ])
+    ])
+    error_message = "Cost limits and alert thresholds must be greater than zero, and token prices must not be negative."
+  }
+}
+
+variable "cost_alert_threshold_percent" {
+  description = "Percent of daily_cost_limit_usd at which a cost alert fires for profiles that set a limit but no explicit daily_cost_alert_usd."
+  type        = number
+  default     = 80
+
+  validation {
+    condition     = var.cost_alert_threshold_percent > 0 && var.cost_alert_threshold_percent <= 100
+    error_message = "cost_alert_threshold_percent must be greater than 0 and at most 100."
+  }
+}
+
+variable "enforce_daily_cost_limits" {
+  description = "When true (default), profiles that reach daily_cost_limit_usd are denied through the cost-limit block policy. When false the limit is only reported (CostLimitBlocked metric and alarm), which is useful as a dry run."
+  type        = bool
+  default     = true
+}
+
+variable "cost_check_interval_minutes" {
+  description = "How often the cost enforcer Lambda runs. Bedrock metrics lag by a few minutes, so values below 5 add little."
+  type        = number
+  default     = 5
+
+  validation {
+    condition     = var.cost_check_interval_minutes >= 1 && var.cost_check_interval_minutes <= 60 && floor(var.cost_check_interval_minutes) == var.cost_check_interval_minutes
+    error_message = "cost_check_interval_minutes must be a whole number between 1 and 60."
+  }
+}
+
+variable "cost_limit_block_policy_role_names" {
+  description = "Names of IAM roles to attach the cost-limit block policy to. Leave empty when the policy is referenced from IAM Identity Center permission sets as a customer managed policy instead."
+  type        = list(string)
+  default     = []
 }

@@ -82,3 +82,43 @@ output "audit_log_expiration_days" {
   description = "Retention (days) applied to CloudTrail log objects in the child audit bucket."
   value       = module.bedrock_governance.audit_log_expiration_days
 }
+
+output "cost_limit_block_policy_arn" {
+  description = "ARN of the managed policy the cost enforcer rewrites to deny profiles over their daily limit. Null when no profile sets daily_cost_limit_usd."
+  value       = module.bedrock_governance.cost_limit_block_policy_arn
+}
+
+output "cost_limit_block_policy_name" {
+  description = "Name of the cost-limit block policy. Reference it (path /) as a customer managed policy in each IAM Identity Center permission set that can invoke the profiles."
+  value       = module.bedrock_governance.cost_limit_block_policy_name
+}
+
+output "cost_enforcer_function_name" {
+  description = "Name of the cost limit enforcer Lambda function. Null when no profile sets pricing."
+  value       = module.bedrock_governance.cost_enforcer_function_name
+}
+
+output "cost_alert_thresholds_usd" {
+  description = "Estimated daily cost (USD) at which each profile's cost alert fires."
+  value       = module.bedrock_governance.cost_alert_thresholds_usd
+}
+
+output "cost_alert_alarm_names" {
+  description = "Map of model source name to its daily cost alert alarm name."
+  value       = module.bedrock_governance.cost_alert_alarm_names
+}
+
+output "cost_limit_alarm_names" {
+  description = "Map of model source name to its daily cost limit alarm name."
+  value       = module.bedrock_governance.cost_limit_alarm_names
+}
+
+output "cost_alert_alarm_actions" {
+  description = "Notification actions configured for each cost alert alarm."
+  value       = module.bedrock_governance.cost_alert_alarm_actions
+}
+
+output "cost_daily_limits_usd" {
+  description = "Configured daily cost limit (USD) per profile."
+  value       = module.bedrock_governance.cost_daily_limits_usd
+}

@@ -5,6 +5,36 @@ mock_provider "aws" {
     }
   }
 
+  mock_resource "aws_iam_role" {
+    defaults = {
+      arn = "arn:aws:iam::123456789012:role/mock-role"
+    }
+  }
+
+  mock_resource "aws_iam_policy" {
+    defaults = {
+      arn = "arn:aws:iam::123456789012:policy/mock-policy"
+    }
+  }
+
+  mock_resource "aws_lambda_function" {
+    defaults = {
+      arn = "arn:aws:lambda:us-east-1:123456789012:function:mock-function"
+    }
+  }
+
+  mock_resource "aws_cloudwatch_event_rule" {
+    defaults = {
+      arn = "arn:aws:events:us-east-1:123456789012:rule/mock-rule"
+    }
+  }
+
+  mock_resource "aws_cloudwatch_log_group" {
+    defaults = {
+      arn = "arn:aws:logs:us-east-1:123456789012:log-group:/aws/lambda/mock"
+    }
+  }
+
   mock_data "aws_iam_policy_document" {
     defaults = {
       json = "{\"Version\":\"2012-10-17\",\"Statement\":[]}"
@@ -665,4 +695,167 @@ run "audit_retention_rejects_under_30_days" {
   }
 
   expect_failures = [var.audit_log_retention_days]
+}
+
+run "cost_limits_and_alerts_are_per_profile" {
+  command = apply
+
+  variables {
+    region                       = "us-east-1"
+    resource_name_prefix         = "cost-test"
+    deployment_mode              = "child"
+    alarm_email                  = "ops@example.com"
+    cost_alert_threshold_percent = 80
+    model_sources = [
+      {
+        name                 = "sonnet"
+        model_id             = "us.anthropic.claude-sonnet-5-5"
+        pricing              = { input_per_million = 3, output_per_million = 15 }
+        daily_cost_limit_usd = 50
+      },
+      {
+        name                 = "haiku"
+        model_id             = "us.anthropic.claude-haiku-5-5"
+        pricing              = { input_per_million = 0.11, output_per_million = 0.55 }
+        daily_cost_alert_usd = 5
+      },
+      {
+        name     = "opus"
+        model_id = "us.anthropic.claude-opus-5-5"
+      }
+    ]
+  }
+
+  assert {
+    condition     = output.cost_daily_limits_usd == { sonnet = 50 }
+    error_message = "Only profiles that set daily_cost_limit_usd may have a limit."
+  }
+
+  assert {
+    condition     = output.cost_alert_thresholds_usd == { sonnet = 40, haiku = 5 }
+    error_message = "A limit alerts at cost_alert_threshold_percent of the limit, an explicit alert wins, and unpriced profiles get no alert."
+  }
+
+  assert {
+    condition     = keys(output.cost_limit_alarm_names) == ["sonnet"]
+    error_message = "Only the profile with a limit may get a limit alarm."
+  }
+
+  assert {
+    condition     = output.cost_alert_alarm_names["haiku"] == "cost-test-haiku-daily-cost-alert"
+    error_message = "Each priced profile with a threshold must get its own cost alert alarm."
+  }
+
+  assert {
+    condition     = alltrue([for key, actions in output.cost_alert_alarm_actions : length(actions) > 0])
+    error_message = "Cost alerts must notify the configured target."
+  }
+
+  assert {
+    condition     = output.cost_limit_block_policy_name == "cost-test-bedrock-cost-limit-block"
+    error_message = "The block policy must be exposed by name for Identity Center customer managed policy references."
+  }
+
+  assert {
+    condition     = output.cost_enforcer_function_name == "cost-test-bedrock-cost-limit-enforcer"
+    error_message = "A priced profile must deploy the cost enforcer."
+  }
+}
+
+run "cost_alert_percent_is_configurable" {
+  command = plan
+
+  variables {
+    region                       = "us-east-1"
+    resource_name_prefix         = "cost-test"
+    deployment_mode              = "child"
+    cost_alert_threshold_percent = 50
+    model_sources = [
+      {
+        name                 = "sonnet"
+        model_id             = "us.anthropic.claude-sonnet-5-5"
+        pricing              = { input_per_million = 3, output_per_million = 15 }
+        daily_cost_limit_usd = 50
+      }
+    ]
+  }
+
+  assert {
+    condition     = output.cost_alert_thresholds_usd["sonnet"] == 25
+    error_message = "The implicit alert threshold must follow cost_alert_threshold_percent."
+  }
+}
+
+run "cost_control_is_off_without_pricing" {
+  command = plan
+
+  variables {
+    region               = "us-east-1"
+    resource_name_prefix = "cost-test"
+    deployment_mode      = "child"
+    model_sources = [
+      { name = "sonnet", model_id = "us.anthropic.claude-sonnet-5-5" }
+    ]
+  }
+
+  assert {
+    condition = alltrue([
+      output.cost_enforcer_function_name == null,
+      output.cost_limit_block_policy_arn == null,
+      length(output.cost_alert_alarm_names) == 0,
+      length(output.cost_limit_alarm_names) == 0
+    ])
+    error_message = "Existing deployments without pricing must not gain cost-control resources."
+  }
+}
+
+run "cost_limit_without_pricing_is_rejected" {
+  command = plan
+
+  variables {
+    region               = "us-east-1"
+    resource_name_prefix = "cost-test"
+    deployment_mode      = "child"
+    model_sources = [
+      { name = "sonnet", model_id = "us.anthropic.claude-sonnet-5-5", daily_cost_limit_usd = 50 }
+    ]
+  }
+
+  expect_failures = [var.model_sources]
+}
+
+run "non_positive_cost_limit_is_rejected" {
+  command = plan
+
+  variables {
+    region               = "us-east-1"
+    resource_name_prefix = "cost-test"
+    deployment_mode      = "child"
+    model_sources = [
+      {
+        name                 = "sonnet"
+        model_id             = "us.anthropic.claude-sonnet-5-5"
+        pricing              = { input_per_million = 3, output_per_million = 15 }
+        daily_cost_limit_usd = 0
+      }
+    ]
+  }
+
+  expect_failures = [var.model_sources]
+}
+
+run "cost_check_interval_is_bounded" {
+  command = plan
+
+  variables {
+    region                      = "us-east-1"
+    resource_name_prefix        = "cost-test"
+    deployment_mode             = "child"
+    cost_check_interval_minutes = 0
+    model_sources = [
+      { name = "sonnet", model_id = "us.anthropic.claude-sonnet-5-5" }
+    ]
+  }
+
+  expect_failures = [var.cost_check_interval_minutes]
 }

@@ -45,3 +45,17 @@ For strict SCP mode, copy the exact approved AIP ARNs from
 `terraform output -json inference_profile_arns` to
 `approved_application_inference_profile_arns` in the management tfvars before
 planning the management state.
+
+## Daily cost-limit block policy
+
+When any `model_sources` entry sets `daily_cost_limit_usd`, the child state also
+creates the managed policy named by `terraform output -raw cost_limit_block_policy_name`.
+It is a deny list that the cost enforcer Lambda rewrites as profiles reach their
+daily limit; Terraform ignores its content. Because an explicit deny overrides
+the allow statements above, attaching it to the same permission set blocks the
+over-limit profiles without changing the permission set again.
+
+Add it to the permission set as a customer managed policy reference (name from
+the output, path `/`). IAM Identity Center requires a policy with that name in
+every account the permission set is provisioned to, so deploy the child state to
+those accounts first.

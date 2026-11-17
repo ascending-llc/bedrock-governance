@@ -19,7 +19,7 @@ application inference profile per team and model, configured as separate
 
 The management state activates tag keys for Cost Explorer/CUR using the
 Terraform `aws_ce_cost_allocation_tag` resource. Set `cost_allocation_tag_keys`
-only after the child resources carrying those tags exist. The sandbox
+only after the child resources carrying those tags exist. A typical
 management tfvars activates `Project`, `Team` and `Model` after the child AIPs
 are deployed; its output reports the requested tag status.
 
