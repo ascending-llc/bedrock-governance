@@ -123,6 +123,101 @@ Resources:
               - ec2:DescribeRegions
             Resource: '*'
 
+          # Cost limit enforcement (Lambda, schedule, managed block policy). Resources are scoped to
+          # the '-bedrock-cost-' names the module creates.
+          - Sid: CostEnforcerLambda
+            Effect: Allow
+            Action:
+              - lambda:CreateFunction
+              - lambda:DeleteFunction
+              - lambda:GetFunction
+              - lambda:GetFunctionConfiguration
+              - lambda:GetFunctionCodeSigningConfig
+              - lambda:UpdateFunctionCode
+              - lambda:UpdateFunctionConfiguration
+              - lambda:AddPermission
+              - lambda:RemovePermission
+              - lambda:GetPolicy
+              - lambda:ListVersionsByFunction
+              - lambda:ListTags
+              - lambda:TagResource
+              - lambda:UntagResource
+            Resource: !Sub arn:aws:lambda:*:${AWS::AccountId}:function:*-bedrock-cost-*
+
+          - Sid: CostEnforcerSchedule
+            Effect: Allow
+            Action:
+              - events:PutRule
+              - events:DeleteRule
+              - events:DescribeRule
+              - events:PutTargets
+              - events:RemoveTargets
+              - events:ListTargetsByRule
+              - events:ListTagsForResource
+              - events:TagResource
+              - events:UntagResource
+            Resource: !Sub arn:aws:events:*:${AWS::AccountId}:rule/*-bedrock-cost-*
+
+          - Sid: CostEnforcerLogGroup
+            Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:DeleteLogGroup
+              - logs:PutRetentionPolicy
+              - logs:ListTagsForResource
+              - logs:TagResource
+              - logs:UntagResource
+            Resource: !Sub arn:aws:logs:*:${AWS::AccountId}:log-group:/aws/lambda/*-bedrock-cost-*
+
+          - Sid: CostEnforcerLogGroupDescribe
+            Effect: Allow
+            Action: logs:DescribeLogGroups
+            Resource: '*'
+
+          - Sid: CostEnforcerRole
+            Effect: Allow
+            Action:
+              - iam:CreateRole
+              - iam:DeleteRole
+              - iam:GetRole
+              - iam:PassRole
+              - iam:UpdateAssumeRolePolicy
+              - iam:PutRolePolicy
+              - iam:GetRolePolicy
+              - iam:DeleteRolePolicy
+              - iam:ListRolePolicies
+              - iam:ListAttachedRolePolicies
+              - iam:ListInstanceProfilesForRole
+              - iam:TagRole
+              - iam:UntagRole
+            Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/*-bedrock-cost-*
+
+          - Sid: CostLimitBlockPolicy
+            Effect: Allow
+            Action:
+              - iam:CreatePolicy
+              - iam:DeletePolicy
+              - iam:GetPolicy
+              - iam:GetPolicyVersion
+              - iam:ListPolicyVersions
+              - iam:CreatePolicyVersion
+              - iam:DeletePolicyVersion
+              - iam:ListEntitiesForPolicy
+              - iam:TagPolicy
+              - iam:UntagPolicy
+            Resource: !Sub arn:aws:iam::${AWS::AccountId}:policy/*-bedrock-cost-limit-block
+
+          # Only needed when cost_limit_block_policy_role_names is set.
+          - Sid: CostLimitBlockPolicyAttach
+            Effect: Allow
+            Action:
+              - iam:AttachRolePolicy
+              - iam:DetachRolePolicy
+            Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/*
+            Condition:
+              ArnLike:
+                iam:PolicyARN: !Sub arn:aws:iam::${AWS::AccountId}:policy/*-bedrock-cost-limit-block
+
 Outputs:
   ChildDeployRoleArn:
     Description: IAM role ARN to set as deploy_role_arn for child deployments.

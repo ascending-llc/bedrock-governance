@@ -31,3 +31,9 @@ jobs:
 
       - name: Terraform validate
         run: terraform validate
+
+      - name: Terraform tests
+        run: terraform test
+
+      - name: Cost enforcer Lambda tests
+        run: python3 -m unittest discover -s modules/bedrock_governance/lambda -v

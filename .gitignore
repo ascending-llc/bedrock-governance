@@ -5,3 +5,8 @@
 crash.log
 *.auto.tfvars
 .DS_Store
+
+# Real account configuration belongs in a private repository; only the placeholder template is tracked
+deployment_accounts/*
+!deployment_accounts/example/
+.build/
