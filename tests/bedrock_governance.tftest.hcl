@@ -208,9 +208,8 @@ run "child_profiles_have_standard_tags_and_identity_policy" {
       }
     ]
     approved_codex_inference_profile_arns = [
-      "arn:aws:bedrock:us-east-1:123456789012:inference-profile/global.openai.gpt-6.1-sol",
-      "arn:aws:bedrock:us-east-1:123456789012:inference-profile/global.openai.gpt-6.1-terra",
-      "arn:aws:bedrock:us-east-1:123456789012:inference-profile/global.openai.gpt-6-luna"
+      "arn:aws:bedrock:us-east-1:123456789012:inference-profile/global.openai.gpt-6.2-sol",
+      "arn:aws:bedrock:us-east-1:123456789012:inference-profile/global.openai.gpt-6.2-astra"
     ]
     approved_codex_project_arns = [
       "arn:aws:bedrock:us-east-1:123456789012:project/default"
@@ -259,9 +258,8 @@ run "child_profiles_have_standard_tags_and_identity_policy" {
 
   assert {
     condition = alltrue([
-      strcontains(output.identity_center_bedrock_inference_policy_json, "global.openai.gpt-6.1-sol"),
-      strcontains(output.identity_center_bedrock_inference_policy_json, "global.openai.gpt-6.1-terra"),
-      strcontains(output.identity_center_bedrock_inference_policy_json, "global.openai.gpt-6-luna"),
+      strcontains(output.identity_center_bedrock_inference_policy_json, "global.openai.gpt-6.2-sol"),
+      strcontains(output.identity_center_bedrock_inference_policy_json, "global.openai.gpt-6.2-astra"),
       !strcontains(output.identity_center_bedrock_inference_policy_json, "us.openai.")
     ])
     error_message = "The Identity Center policy must include only the explicitly configured Global Codex profiles."

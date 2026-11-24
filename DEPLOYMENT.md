@@ -54,8 +54,6 @@ aws cloudformation deploy \
 
 Note the `ChildDeployRoleArn` value from the stack outputs — you will use it in Step 3.
 
-`TrustedPrincipalArn` accepts a comma-separated list, for example `'<ROLE_ARN_1>,<ROLE_ARN_2>'`. To add a CI role to an existing stack, update it with the full list; a single ARN, as used by earlier deployments, stays valid.
-
 ### Organizational Unit (OU) — CloudFormation StackSets
 
 For deployments across many accounts, use a SERVICE_MANAGED StackSet from the management account. This deploys `BedrockGovernanceDeployer` to every account in the OU in one operation, and automatically deploys to any account added to the OU in the future.
@@ -104,7 +102,7 @@ Use the `ChildDeployRoleArn` output from each stack instance when populating `ch
 
 ## Step 3 — Populate config files
 
-Copy the following values from the CloudFormation stack outputs into a per-customer copy of `deployment_accounts/example/` (for example `deployment_accounts/<customer>/`) in your private repository; do not edit `example/` itself and never commit account configuration to the public repository. If you consume the module from your own Terraform repository, put the equivalent values in that repository's tfvars and backend config.
+Copy the following values from the CloudFormation stack outputs into a per-customer copy of `deployment_accounts/example/` (for example `deployment_accounts/card-monroe/`); do not edit `example/` itself.
 
 | Output | File | Key |
 |---|---|---|
@@ -225,7 +223,8 @@ supplies the values it needs:
 | `aws.sso_start_url`, `aws.sso_region`, `aws.sso_role_name` | The customer's IAM Identity Center and the permission set that carries `identity_center_bedrock_inference_policy_json` (and the cost-limit block policy, if used) |
 | `claude.models.<tier>.aip_arn` | `terraform output -json inference_profile_arns` |
 | `claude.models.<tier>.anthropic_model_id` | The model behind each AIP: `aws bedrock get-inference-profile --inference-profile-identifier <aip_arn> --query 'models[].modelArn'` |
-| `codex.default_model` | A profile ID from `approved_codex_inference_profile_arns` (for example `global.openai.gpt-6.1-terra`) |
+| `codex.models` | One entry per profile ID in `approved_codex_inference_profile_arns` (for example `global.openai.gpt-6.2-sol` and `global.openai.gpt-6.2-astra`); keep the two lists identical, since IAM, not Codex, enforces what a user can call |
+| `codex.default_model` | The starting model; must be a key of `codex.models` (for example `global.openai.gpt-6.2-sol`) |
 
 1. Complete Steps 4-6, including attaching the Identity Center policy to the
    permission set the clients will use.
