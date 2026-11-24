@@ -33,9 +33,8 @@ Child Account
 │   ├── bedrock-governance-claude-code-claude-sonnet-5-5
 │   ├── bedrock-governance-claude-code-claude-opus-5-5
 │   ├── bedrock-governance-claude-code-claude-haiku-5-5
-│   ├── bedrock-governance-openai-gpt-6-1-sol
-│   ├── bedrock-governance-openai-gpt-6-1-terra
-│   └── bedrock-governance-openai-gpt-6-luna
+│   ├── bedrock-governance-openai-gpt-6-2-sol
+│   └── bedrock-governance-openai-gpt-6-2-astra
 ├── CloudWatch Anomaly Alarms (input + output tokens, per AIP)
 ├── Cost Control (per priced AIP)
 │   ├── EventBridge schedule → Lambda cost enforcer
@@ -116,7 +115,7 @@ Related variables: `cost_alert_threshold_percent`, `enforce_daily_cost_limits` (
 |  |- management_bootstrap.yaml # Management bootstrap (Terraform state backend)
 |  |- child_bootstrap.yaml      # Child bootstrap (Terraform deploy role)
 |- deployment_accounts/
-|  |- example/                  # Placeholder-only template; real account config lives in a private repo
+|  |- example/                  # Template: copy per customer, do not edit in place
 |  |  |- management_backend.hcl # Backend settings for management state
 |  |  |- child_backend.hcl      # Backend settings for child state
 |  |  |- management.tfvars      # Vars for management deployment
@@ -128,24 +127,6 @@ Related variables: `cost_alert_threshold_percent`, `enforce_daily_cost_limits` (
 |- tests/                       # terraform test suite (mock provider)
 |- docs/                        # Operational guides
 ```
-
-## Deployment options
-
-This repository holds reusable code only. Account IDs, state buckets, role ARNs and alert emails never belong here; keep them in a private repository.
-
-1. **No existing Terraform repository.** Create a private copy of this repository (a GitHub fork of a public repo cannot be private, so use a template copy or mirror push), copy `deployment_accounts/example/` to `deployment_accounts/<customer>/`, and fill in your values there. Keep this upstream as a remote to pull module updates.
-2. **Existing Terraform repository.** Call the module from your own configuration and store the account values in your own repository:
-
-   ```hcl
-   module "bedrock_governance" {
-     source = "git::https://github.com/ascending-llc/bedrock-governance.git//modules/bedrock_governance?ref=<release-tag>"
-     # variables from your own tfvars
-   }
-   ```
-
-   The root `main.tf` here is a thin wrapper over `modules/bedrock_governance`; your repository supplies its own backend and provider configuration. Pin `ref` to a release tag. Inputs and outputs are in [modules/bedrock_governance/README.md](modules/bedrock_governance/README.md); a complete child plus management setup is in [examples/existing-terraform](examples/existing-terraform).
-
-ASCENDING-managed deployments keep their configuration in the private Operation repository and reference this module the same way.
 
 ## Getting started
 
